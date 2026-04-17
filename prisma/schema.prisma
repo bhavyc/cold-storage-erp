@@ -1,0 +1,431 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+   
+}
+
+// ==========================================
+// 1. IDENTITY & USER MANAGEMENT
+// ==========================================
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  OPERATOR
+  GATEKEEPER
+  ACCOUNTANT
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  username  String   @unique
+  password  String
+  role      UserRole @default(OPERATOR)
+  status    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ==========================================
+// 2. MASTER DATA (DNA of ERP)
+// ==========================================
+
+model Category {
+  id           String @id @default(uuid())
+  code         String @unique
+  name         String // FRUITS, SEEDS, etc.
+  minLot       Int?
+  maxLot       Int?
+  minMrGpNo    Int?
+  maxMrGpNo    Int?
+  items        Item[]
+}
+
+model Unit {
+  id                  String   @id @default(uuid())
+  code                String   @unique
+  name                String   // BAG, PETI, BOX, KATTA
+  type                String   // Company, Grower, Peti
+  emptyWeight         Decimal  @default(0) @db.Decimal(10, 3) // Tare Weight logic
+  rateToContractorIn  Decimal  @default(0) @db.Decimal(10, 2) // Lab IN (₹8)
+  rateToContractorOut Decimal  @default(0) @db.Decimal(10, 2) // Lab OUT (₹8)
+  opBalance           Int      @default(0)
+  lots                Lot[]
+  itemConfigs         ItemUnitConfig[]
+  partyRates          PartyItemRate[]
+}
+
+model Item {
+  id             String   @id @default(uuid())
+  code           String   @unique
+  name           String
+  categoryId     String
+  category       Category @relation(fields: [categoryId], references: [id])
+  hsnCode        String?
+  gstRate        Decimal  @default(18.0) @db.Decimal(5, 2)
+  lots           Lot[]
+  itemUnits      ItemUnitConfig[]
+  partyRates     PartyItemRate[]
+}
+
+model ItemUnitConfig {
+  id         String  @id @default(uuid())
+  itemId     String
+  item       Item    @relation(fields: [itemId], references: [id])
+  unitId     String
+  unit       Unit    @relation(fields: [unitId], references: [id])
+  rentRate   Decimal @default(0) @db.Decimal(10, 2) // Default Rent
+  labourRate Decimal @default(0) @db.Decimal(10, 2) // Full Lab (₹20)
+  weight     Decimal @default(0) @db.Decimal(10, 3)
+  lotValue   Decimal @default(0) @db.Decimal(10, 2)
+  period     Int     @default(0)
+}
+
+model Party {
+  id               String   @id @default(uuid())
+  demands          Demand[] //
+  partyCode        String   @unique
+  type             String   @default("Sundry Debtors")
+  tradeName        String
+  proprietor       String?
+  address          String?
+  pincode          String?
+  contactPerson    String?
+  designation      String?
+  email            String?
+  mobiles          String[] // Up to 10 WhatsApp Numbers
+                               
+  // GST & Compliance
+  gstType          String?  // Registered, Unregistered, Composition
+  stateName        String?
+  stateCode        String?
+  panNo            String?
+  gstNo            String?
+  aadharNo         String?
+  
+  // Billing Variant Flags (Images 11 & 51)
+  billNilLot       Boolean @default(false)
+  billMonthly      Boolean @default(false)
+  billTransport    Boolean @default(false)
+  billSpace        Boolean @default(false)
+  billBalance      Boolean @default(false)
+  billItemDay      Boolean @default(false)
+  billFixed        Boolean @default(false)
+  billCyclic       Boolean @default(false)
+  billDispatch     Boolean @default(false)
+  billItem         Boolean @default(false)
+  billGeneral      Boolean @default(false)
+  billWeekly       Boolean @default(false)
+  billUntouched    Boolean @default(false)
+  billLabour       Boolean @default(false)
+  billCA           Boolean @default(false)
+  billSlip         Boolean @default(false)
+
+  graceDays        Int     @default(0)
+  maxAllowedCredit Decimal @default(0) @db.Decimal(15, 2)
+  
+  // Financial Linking
+  bankName         String?
+  branch           String?
+  accountNo        String?
+  ifsc             String?
+  holderName       String?
+  
+  lots             Lot[]
+  invoices         Invoice[]
+  vouchers         Voucher[]
+  specialRates     PartyItemRate[]
+
+
+  partyPhoto      String?  // Path to file
+  partyDocs       String?  // Path to zip/pdf
+  
+  openingBalance  Decimal  @default(0) @db.Decimal(15,2)
+  openingMode     String   @default("Debit") // Debit or Credit
+}
+
+model PartyItemRate {
+  id        String @id @default(uuid())
+  partyId   String
+  party     Party  @relation(fields: [partyId], references: [id])
+  itemId    String
+  item      Item     @relation(fields: [itemId], references: [id])  
+  unitId    String
+  unit      Unit     @relation(fields: [unitId], references: [id]) 
+  csRent    Decimal @default(0) @db.Decimal(10, 2)
+  csLab     Decimal @default(0) @db.Decimal(10, 2)
+  caRent    Decimal @default(0) @db.Decimal(10, 2)
+  caLab     Decimal @default(0) @db.Decimal(10, 2)
+  freight   Decimal @default(0) @db.Decimal(10, 2)
+}
+
+// ==========================================
+// 3. WAREHOUSE MANAGEMENT (Space Logic)
+// ==========================================
+
+model Chamber {
+  id            String   @id @default(uuid())
+  code          String   @unique
+  name          String
+  remarks       String?
+  type          String   // Modified Atmosphere (CA) or Cold Storage (CS)
+  capacityMode  String   // Exact Holding, Theoretical, LumpSum
+  pallets Pallet[]
+  // Theoretical Calculation (Image 24)
+  length        Decimal? @db.Decimal(10, 2)
+  breadth       Decimal? @db.Decimal(10, 2)
+  height        Decimal? @db.Decimal(10, 2)
+  
+  totalCapacity Int
+  totalPallets  Int      @default(0)
+  lots          Lot[]
+}
+
+model Pallet {
+  id        String  @id @default(uuid())
+  palletNo  String  @unique
+  status    String  @default("Empty") // Empty, Partial, Full
+  chamberId String
+  chamber   Chamber  @relation(fields: [chamberId], references: [id])  
+  lotId     String?
+  date        DateTime @default(now())  // Kab rakha gaya
+  assignedQty Int      @default(0) // Kitni bori is pallet par rakhi hain
+  
+  // Ye dono lines update/add karo relationship ke liye:
+  
+  lot         Lot?     @relation(fields: [lotId], references: [id])
+
+}
+
+// ==========================================
+// 4. INVENTORY OPERATIONS (The Cycle)
+// ==========================================
+
+model Lot {
+  id              String   @id @default(uuid())
+  lotNo           String   @unique
+  mrNo            String   // Material Receipt Number
+  partyId         String
+  party           Party    @relation(fields: [partyId], references: [id])
+  itemId          String
+  item            Item     @relation(fields: [itemId], references: [id])
+  variety         String?
+  unitId          String
+  unit            Unit     @relation(fields: [unitId], references: [id])
+  pallets         Pallet[]
+  // Location Details
+  chamberId       String
+  chamber         Chamber  @relation(fields: [chamberId], references: [id])
+  floor           String?
+  pole            String?
+  palletNo        String?
+
+  marka           String?
+  pMarka          String?
+
+  receivedQty     Int
+  balanceQty      Int      @default(0) // Live stock tracking
+  
+  // Weight Engine
+  perUnitWgt      Decimal  @db.Decimal(10, 3)
+  totalTareWgt    Decimal  @db.Decimal(10, 3)
+  totalNetWgt     Decimal  @db.Decimal(10, 3)
+  
+  arrivalDate     DateTime
+  uptoDate        DateTime? // CRITICAL: Track rent payment continuity (Images 37/68)
+
+  inwardEntry     InwardEntry?
+  outwardEntries  OutwardEntry[]
+  invoiceItems    InvoiceItem[]
+  shiftingLogs    StockShifting[]
+  demandItems     DemandItem[]
+}
+
+model InwardEntry {
+  id              String   @id @default(uuid())
+  lotId           String   @unique
+  lot             Lot      @relation(fields: [lotId], references: [id])
+  mrDate          DateTime @default(now())
+  truckNo         String?
+  deliveryPerson  String?
+  billingType     String?  // Weekly, Nill, Fixed etc.
+  remarks         String?
+}
+
+model OutwardEntry {
+  id             String   @id @default(uuid())
+  gpNo           String   @unique // Gate Pass Number
+  lotId          String
+  lot            Lot      @relation(fields: [lotId], references: [id])
+  gpDate         DateTime @default(now())
+  qty            Int
+  netWeight      Decimal  @db.Decimal(10, 3)
+  vehicleNo      String?
+  personName     String?
+  transportRequired Boolean @default(false)
+  grNo           String?
+}
+
+model StockShifting {
+  id           String   @id @default(uuid())
+  lotId        String
+  lot          Lot      @relation(fields: [lotId], references: [id])
+  date         DateTime @default(now())
+  fromLocation String
+  toLocation   String
+  qty          Int
+}
+
+model Demand {
+  id        String   @id @default(uuid())
+  demandNo  String   @unique
+  date      DateTime @default(now())
+  partyId   String
+  party     Party    @relation(fields: [partyId], references: [id]) 
+  status    String   @default("Pending") // Pending, Completed
+  items     DemandItem[]
+}
+
+model DemandItem {
+  id       String @id @default(uuid())
+  demandId String
+  demand   Demand @relation(fields: [demandId], references: [id])
+  lotId    String
+  lot      Lot    @relation(fields: [lotId], references: [id])
+  qty      Int
+}
+
+// ==========================================
+// 5. BILLING & TAXATION 
+// ==========================================
+
+model Invoice {
+  id            String   @id @default(uuid())
+  invoiceNo     String   @unique
+  date          DateTime @default(now())
+  partyId       String
+  party         Party    @relation(fields: [partyId], references: [id])
+  
+  billingType   String   // Nill Lot, Balance, Monthly, CA
+  isProforma    Boolean  @default(false)
+  
+  fromDate      DateTime?
+  toDate        DateTime?
+
+  totalQty      Int
+  totalRent     Decimal  @db.Decimal(15, 2)
+  totalLabour   Decimal  @db.Decimal(15, 2)
+  taxableValue  Decimal  @db.Decimal(15, 2)
+  cgst          Decimal  @db.Decimal(15, 2)
+  sgst          Decimal  @db.Decimal(15, 2)
+  igst          Decimal  @db.Decimal(15, 2)
+  roundOff      Decimal  @db.Decimal(10, 2)
+  netAmount     Decimal  @db.Decimal(15, 2)
+  
+  status        String   @default("Unpaid") // Paid, Unpaid, Partial
+  irnNo         String?  // e-Invoice IRN
+  items         InvoiceItem[]
+}
+
+model InvoiceItem {
+  id         String   @id @default(uuid())
+  invoiceId  String
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id])
+  lotId      String
+  lot        Lot      @relation(fields: [lotId], references: [id])
+  qty        Int
+  period     Int      // Days calculated from uptoDate
+  rentRate   Decimal  @db.Decimal(10, 2)
+  labourRate Decimal  @db.Decimal(10, 2)
+  rentAmt    Decimal  @db.Decimal(15, 2)
+  labourAmt  Decimal  @db.Decimal(15, 2)
+}
+
+// ==========================================
+// 6. ACCOUNTING ENGINE (Double Entry System)
+// ==========================================
+
+model AccountGroup {
+  id         String   @id @default(uuid())
+  code       String   @unique
+  name       String
+  reportType String   // Balance Sheet, Profit Loss
+  groupType  String   // Main Group, Sub Group
+  ledgers    Ledger[]
+}
+
+model Ledger {
+  id             String       @id @default(uuid())
+  code           String       @unique
+  name           String
+  groupId        String
+  group          AccountGroup @relation(fields: [groupId], references: [id])
+  openingBalance Decimal      @default(0) @db.Decimal(15, 2)
+  openingMode    String       @default("Debit") // Debit, Credit
+  maxCredit      Decimal      @default(0) @db.Decimal(15, 2)
+  
+  voucherEntries VoucherItem[]
+}
+
+model Voucher {
+  id            String   @id @default(uuid())
+  voucherNo     String   @unique
+  date          DateTime @default(now())
+  vocType       String   // Payment, Receipt, Journal, Contra
+  group         String   // Cash, Bank, Journal
+  partyId       String?
+  party         Party?   @relation(fields: [partyId], references: [id])
+  remarks       String?
+  totalAmount   Decimal  @db.Decimal(15, 2)
+  items         VoucherItem[]
+}
+
+model VoucherItem {
+  id            String   @id @default(uuid())
+  voucherId     String
+  voucher       Voucher  @relation(fields: [voucherId], references: [id])
+  ledgerId      String
+  ledger        Ledger   @relation(fields: [ledgerId], references: [id])
+  debit         Decimal  @default(0) @db.Decimal(15, 2)
+  credit        Decimal  @default(0) @db.Decimal(15, 2)
+  narration     String?
+}
+
+model TDSMaster {
+  id             String  @id @default(uuid())
+  section        String
+  description    String
+  panStatus      Boolean @default(true)
+  minThreshold   Decimal @default(0) @db.Decimal(15, 2)
+  tdsPercentage  Decimal @default(0) @db.Decimal(5, 2)
+}
+
+model NarrationMaster {
+  id          String @id @default(uuid())
+  code        String @unique
+  group       String // Cash, Bank
+  vocType     String // Payment, Receipt
+  description String
+}
+
+
+
+
+model SystemSettings {
+  id    String @id @default(uuid())
+  key   String @unique // Example: 'CASH_LEDGER_ID', 'LABOUR_EXPENSE_ID'
+  value String // Yahan us Ledger ki actual UUID store hogi
+}
+
+
+model SystemSequence {
+  id          String @id @default(uuid())
+  entityType  String @unique // 'LOT', 'MR', 'GP', 'INV', 'VOC'
+  prefix      String?        // e.g., 'MR-' or 'INV/2026/'
+  lastNumber  Int    @default(0)
+  updatedAt   DateTime @updatedAt
+}

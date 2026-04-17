@@ -24,3 +24,19 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+
+
+@media print {
+  /* Sidebar, Header aur Buttons ko hide karein */
+  nav, header, button, .no-print {
+    display: none !important;
+  }
+  /* Main content ko full width karein */
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+  .bg-white { border: none !important; shadow: none !important; }
+}
