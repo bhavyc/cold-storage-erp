@@ -41,3 +41,9 @@
 
 // const handler = NextAuth(authOptions);
 // export { handler as GET, handler as POST };
+
+// Dummy handler to satisfy Next.js build until NextAuth is enabled
+import { NextResponse } from "next/server";
+export async function GET() {
+  return NextResponse.json({ message: "Auth disabled" });
+}

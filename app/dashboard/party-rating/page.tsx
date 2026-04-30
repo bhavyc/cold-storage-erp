@@ -45,7 +45,7 @@ export default function PartyRatingPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header with Search (Visual Softech Style) */}
+      {/* Header with Search (Cold Storage Style) */}
       <div className="bg-[#4a4ea3] text-white p-4 rounded-t-lg flex justify-between items-center">
         <h2 className="font-bold flex items-center gap-2 uppercase tracking-wide">
           <UserCheck size={20} /> Party Wise Rating Analysis

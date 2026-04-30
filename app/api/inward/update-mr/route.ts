@@ -1,64 +1,131 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// 1. GET: MRs ko search karo Slip No range ke hisab se
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
+    const fetchAll = searchParams.get("all");
     const fromSlip = searchParams.get("fromSlip");
     const toSlip = searchParams.get("toSlip");
 
+    // If ?all=true, return everything (for the update-mr page)
+    if (fetchAll === "true") {
+      const mrRecords = await prisma.inwardEntry.findMany({
+        include: {
+          lot: {
+            include: {
+              party: true,
+              item: true,
+              unit: true,
+              chamber: true,
+            },
+          },
+        },
+        orderBy: [{ mrDate: "desc" }, { id: "desc" }],
+      });
+      return NextResponse.json(mrRecords);
+    }
+
+    // Slip range search (original logic)
     if (!fromSlip || !toSlip) {
-      return NextResponse.json({ error: "Slip range bharna zaroori hai!" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Slip range bharna zaroori hai!" },
+        { status: 400 }
+      );
     }
 
     const mrRecords = await prisma.inwardEntry.findMany({
       where: {
         lot: {
-          mrNo: {
-            gte: fromSlip,
-            lte: toSlip
-          }
-        }
+          mrNo: { gte: fromSlip, lte: toSlip },
+        },
       },
       include: {
         lot: {
-          include: { party: true }
-        }
+          include: {
+            party: true,
+            item: true,
+            unit: true,
+            chamber: true,
+          },
+        },
       },
-      orderBy: { mrDate: 'desc' }
+      orderBy: [{ mrDate: "desc" }, { id: "desc" }],
     });
 
     return NextResponse.json(mrRecords);
   } catch (error) {
-    return NextResponse.json({ error: "Records dhoondne mein galti hui!" }, { status: 500 });
+    console.error("GET /update-mr error:", error);
+    return NextResponse.json(
+      { error: "Records dhoondne mein galti hui!" },
+      { status: 500 }
+    );
   }
 }
 
-// 2. PATCH: Minor details update karo aur Lot table se sync karo
 export async function PATCH(req: Request) {
   try {
     const body = await req.json();
-    const { id, mrDate, billingType, truckNo, deliveryPerson, remarks } = body;
+    const { id, mrDate, billingType, truckNo, deliveryPerson, remarks, lot } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
 
     const result = await prisma.$transaction(async (tx) => {
-      // Update InwardEntry (Minor details)
+      // 1. Update InwardEntry fields
       const updatedEntry = await tx.inwardEntry.update({
         where: { id },
         data: {
           mrDate: mrDate ? new Date(mrDate) : undefined,
-          billingType,
-          truckNo,
-          deliveryPerson,
-          remarks
-        }
+          billingType: billingType ?? undefined,
+          truckNo: truckNo ?? undefined,
+          deliveryPerson: deliveryPerson ?? undefined,
+          remarks: remarks ?? undefined,
+        },
       });
 
-      // AUTOMATION: Agar MR Date badli hai, toh Lot ki arrivalDate bhi badalni hogi (Rent ke liye)
-      if (mrDate) {
+      // 2. Update Lot fields if provided
+      if (lot) {
+        const lotUpdateData: any = {};
+
+        if (lot.itemId)      lotUpdateData.itemId      = lot.itemId;
+        if (lot.unitId)      lotUpdateData.unitId      = lot.unitId;
+        if (lot.chamberId)   lotUpdateData.chamberId   = lot.chamberId;
+        if (lot.variety !== undefined) lotUpdateData.variety = lot.variety;
+        if (lot.floor !== undefined)   lotUpdateData.floor   = lot.floor;
+        if (lot.pole !== undefined)    lotUpdateData.pole    = lot.pole;
+        if (lot.marka !== undefined)   lotUpdateData.marka   = lot.marka;
+
+        if (lot.receivedQty !== undefined) {
+          const newRecQty = parseInt(lot.receivedQty) || 0;
+          
+          // Calculate existing dispatches to protect balance integrity
+          const lotId = updatedEntry.lotId;
+          const outwardItems = await tx.outwardEntry.findMany({ where: { lotId } });
+          const dispatchedQty = outwardItems.reduce((sum, item) => sum + Number(item.qty), 0);
+          
+          lotUpdateData.receivedQty = newRecQty;
+          lotUpdateData.balanceQty  = Math.max(0, newRecQty - dispatchedQty);
+        }
+        if (lot.perUnitWgt !== undefined) {
+          lotUpdateData.perUnitWgt = parseFloat(lot.perUnitWgt) || 0;
+        }
+
+        // Auto-sync arrivalDate if mrDate changed
+        if (mrDate) {
+          lotUpdateData.arrivalDate = new Date(mrDate);
+        }
+
         await tx.lot.update({
           where: { id: updatedEntry.lotId },
-          data: { arrivalDate: new Date(mrDate) }
+          data: lotUpdateData,
+        });
+      } else if (mrDate) {
+        // Even without lot object, sync arrivalDate
+        await tx.lot.update({
+          where: { id: updatedEntry.lotId },
+          data: { arrivalDate: new Date(mrDate) },
         });
       }
 
@@ -67,6 +134,7 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json(result);
   } catch (error) {
+    console.error("PATCH /update-mr error:", error);
     return NextResponse.json({ error: "Update fail ho gaya!" }, { status: 400 });
   }
 }

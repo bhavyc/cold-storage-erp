@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
-export async function POST(req: Request, { params }: { params: { partyId: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ partyId: string }> }) {
+  const params = await props.params;
   const { partyId } = params;
 
   try {

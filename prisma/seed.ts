@@ -1,104 +1,109 @@
 import "dotenv/config";
+import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient, Prisma } from "@prisma/client";
+import { Pool } from "pg";
 
-//   YAHAN ADD KIYA - prisma variable define karna zaroori tha
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+// 1. Database Connection Logic (Aapke adapter ke hisab se)
+const connectionString = `${process.env.DATABASE_URL}`;
+const pool = new Pool({ connectionString });
+const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log('--- Seeding Cold Storage Data ---');
+  console.log("🚀 Seeding Professional ERP Data...");
 
-  // 1. MASTER DATA: Category
-  const category = await prisma.category.upsert({
-    where: { code: 'CAT01' },
+  // 1. STANDARD ACCOUNT GROUPS (DNA of Accounting)
+  const groups = [
+    { code: "G01", name: "SUNDRY DEBTORS (PARTIES)", reportType: "Balance Sheet", groupType: "Asset" },
+    { code: "G07", name: "CASH IN HAND", reportType: "Balance Sheet", groupType: "Asset" },
+    { code: "G08", name: "BANK ACCOUNTS", reportType: "Balance Sheet", groupType: "Asset" },
+    { code: "G05", name: "INDIRECT EXPENSES (OFFICE)", reportType: "Profit Loss", groupType: "Expense" },
+    { code: "G06", name: "DIRECT EXPENSES (LABOUR)", reportType: "Profit Loss", groupType: "Expense" },
+    { code: "G04", name: "DIRECT INCOMES (RENT)", reportType: "Profit Loss", groupType: "Income" },
+     { code: 'G02', name: 'SUNDRY CREDITORS', reportType: 'Balance Sheet', groupType: 'Liability' },
+  ];
+
+  for (const g of groups) {
+    await prisma.accountGroup.upsert({
+      where: { code: g.code },
+      update: {},
+      create: g,
+    });
+  }
+  console.log("✅ Account Groups Created.");
+
+  // 2. DEFAULT SYSTEM LEDGERS
+  const cashGroup = await prisma.accountGroup.findUnique({ where: { code: "G07" } });
+  const labourGroup = await prisma.accountGroup.findUnique({ where: { code: "G06" } });
+
+  if (!cashGroup || !labourGroup) throw new Error("Groups missing!");
+
+
+
+
+ const creditorsGroup = await prisma.accountGroup.upsert({
+  where: { code: 'G02' },
+  update: {},
+  create: { 
+    code: 'G02', 
+    name: 'SUNDRY CREDITORS', 
+    reportType: 'Balance Sheet', 
+    groupType: 'Liability' 
+  }
+});
+
+console.log("Sundry Creditors Group Created!");
+  // Main Cash Account (Galla)
+  const cashLedger = await prisma.ledger.upsert({
+    where: { code: "CASH01" },
     update: {},
-    create: { code: 'CAT01', name: 'VEGETABLES', minLot: 1, maxLot: 9999 }
+    create: {
+      code: "CASH01",
+      name: "MAIN CASH ACCOUNT (GALLA)",
+      groupId: cashGroup.id,
+      openingBalance: 0,
+      openingMode: "Debit",
+    },
   });
 
-  // 2. MASTER DATA: Unit (Jute Bag)
-  const unit = await prisma.unit.upsert({
-    where: { code: 'U01' },
+  // Labour Expense Account
+  const labourLedger = await prisma.ledger.upsert({
+    where: { code: "LAB01" },
     update: {},
-    create: { 
-        code: 'U01', 
-        name: 'JUTE BAG (50KG)', 
-        type: 'Company', 
-        emptyWeight: new Prisma.Decimal(0.500),
-        rateToContractorIn: new Prisma.Decimal(8.00),
-        rateToContractorOut: new Prisma.Decimal(8.00)
-    }
+    create: {
+      code: "LAB01",
+      name: "LABOUR EXPENSE ACCOUNT",
+      groupId: labourGroup.id,
+      openingBalance: 0,
+      openingMode: "Debit",
+    },
   });
+  console.log("✅ Default Ledgers Created.");
 
-  // 3. MASTER DATA: Chamber
-  const chamber = await prisma.chamber.upsert({
-    where: { code: 'CH01' },
-    update: {},
-    create: { code: 'CH01', name: 'CHAMBER NO 1', type: 'CS', capacityMode: 'Exact', totalCapacity: 5000 }
-  });
+  // 3. AUTO-MAPPINGS (System Settings)
+  const settings = [
+    { key: "CASH_LEDGER_ID", value: cashLedger.id },
+    { key: "LABOUR_EXPENSE_ID", value: labourLedger.id },
+  ];
 
-  // 4. ACCOUNTING: Groups
-  const groupDebtors = await prisma.accountGroup.create({
-    data: { code: 'G01', name: 'Sundry Debtors', reportType: 'Balance Sheet', groupType: 'Asset' }
-  });
-  const groupCash = await prisma.accountGroup.create({
-    data: { code: 'G07', name: 'Cash In Hand', reportType: 'Balance Sheet', groupType: 'Asset' }
-  });
-  const groupExp = await prisma.accountGroup.create({
-    data: { code: 'G05', name: 'Indirect Expenses', reportType: 'Profit Loss', groupType: 'Expense' }
-  });
+  for (const s of settings) {
+    await prisma.systemSettings.upsert({
+      where: { key: s.key },
+      update: { value: s.value },
+      create: s,
+    });
+  }
+  console.log("✅ System Mappings Set.");
 
-  // 5. ACCOUNTING: System Ledgers
-  const cashLedger = await prisma.ledger.create({
-    data: { code: 'CASH01', name: 'Main Cash Account', groupId: groupCash.id, openingBalance: 10000, openingMode: 'Debit' }
-  });
-  const labourLedger = await prisma.ledger.create({
-    data: { code: 'LABOUR_EXPENSE', name: 'Labour Contractor Account', groupId: groupExp.id }
-  });
-
-  // 6. SYSTEM SETTINGS
-  /*
-  await prisma.systemSettings.createMany({
-    data: [
-        { key: 'CASH_LEDGER_ID', value: cashLedger.id },
-        { key: 'LABOUR_EXPENSE_ID', value: labourLedger.id }
-    ]
-  });
-  */
-
-  // 7. PARTY: Rahul Kumar
-  const party = await prisma.party.create({
-    data: {
-        partyCode: 'P-101',
-        tradeName: 'Rahul Kumar (Farmer)',
-        gstType: 'Unregistered',
-        graceDays: 10,
-        maxAllowedCredit: 50000,
-        openingBalance: 0
-    }
-  });
-
-  // 8. STOCK: Create a Lot (Initial Stock)
-  const lot = await prisma.lot.create({
-    data: {
-        lotNo: '1001',
-        mrNo: 'MR-501',
-        partyId: party.id,
-        itemId: (await prisma.item.create({ data: { code: 'ITM01', name: 'POTATO (JYOTI)', categoryId: category.id }})).id,
-        unitId: unit.id,
-        chamberId: chamber.id,
-        receivedQty: 100,
-        balanceQty: 100,
-        perUnitWgt: 50.500,
-        totalTareWgt: 50.000,
-        totalNetWgt: 5000.000,
-        arrivalDate: new Date('2026-03-01'),
-    }
-  });
-
-  console.log('--- Seed Completed Successfully ---');
+  console.log("⭐ SEEDING COMPLETED! Your ERP is ready to use.");
 }
 
 main()
-  .catch((e) => { console.error(e); process.exit(1); })
-  .finally(async () => { await prisma.$disconnect(); });
+  .catch((e) => {
+    console.error("❌ Seed Error:", e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+    await pool.end(); // Pool ko band karna zaroori hai
+  });

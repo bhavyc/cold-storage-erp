@@ -5,19 +5,25 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const chamberId = searchParams.get("chamberId");
-    const palletNo = searchParams.get("palletNo");
+    const query = searchParams.get("query"); // Naya Smart Query param
 
     // Dynamic Filter
-   const whereClause: any = {
-        status: "Occupied", // Sirf bhare hue pallets dikhao
+    const whereClause: any = {
+        status: "Occupied",
     };
 
     if (chamberId && chamberId !== "All") {
         whereClause.chamberId = chamberId;
     }
 
-    if (palletNo) {
-        whereClause.palletNo = { contains: palletNo, mode: 'insensitive' };
+    //  SMART SEARCH logic inside Report
+    if (query) {
+        whereClause.OR = [
+            { palletNo: { contains: query, mode: 'insensitive' } },
+            { lot: { lotNo: { contains: query, mode: 'insensitive' } } },
+            { lot: { marka: { contains: query, mode: 'insensitive' } } },
+            { lot: { party: { tradeName: { contains: query, mode: 'insensitive' } } } }
+        ];
     }
 
     const reportData = await prisma.pallet.findMany({
@@ -26,7 +32,8 @@ export async function GET(req: Request) {
         chamber: { select: { name: true } },
         lot: {
           include: {
-            item: { select: { name: true } }
+            item: { select: { name: true } },
+            party: { select: { tradeName: true } } // Kisan ka naam report mein dikhane ke liye
           }
         }
       },
@@ -38,3 +45,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Failed to fetch report" }, { status: 500 });
   }
 }
+
+
+
+
+
+
+
+

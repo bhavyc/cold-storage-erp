@@ -14,7 +14,7 @@ interface Props {
 
 export const CategoryForm = ({ initialData, onClose, onRefresh }: Props) => {
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<CategoryInput>({
-    resolver: zodResolver(CategorySchema),
+    resolver: zodResolver(CategorySchema) as any,
     defaultValues: initialData || {
       code: "",
       name: "",
@@ -60,13 +60,13 @@ export const CategoryForm = ({ initialData, onClose, onRefresh }: Props) => {
 
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-600 uppercase">Category Code</label>
+            <label className="text-xs font-bold text-gray-600 uppercase">Category Code *</label>
             <input {...register("code")} className="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" />
             {errors.code && <p className="text-red-500 text-[10px]">{errors.code.message}</p>}
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-600 uppercase">Category Name</label>
+            <label className="text-xs font-bold text-gray-600 uppercase">Category Name *</label>
             <input {...register("name")} className="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" />
             {errors.name && <p className="text-red-500 text-[10px]">{errors.name.message}</p>}
           </div>

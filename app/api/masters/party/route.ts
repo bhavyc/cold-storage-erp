@@ -28,7 +28,9 @@ export async function POST(req: Request) {
       contactPerson: body.contactPerson,
       designation: body.designation,
       email: body.email,
-      mobiles: body.mobiles, 
+     mobiles: Array.isArray(body.mobiles) 
+    ? body.mobiles.filter((m: any) => typeof m === 'string' && m.trim() !== "") 
+    : [],
       gstType: body.gstType,
       stateName: body.stateName,
       stateCode: body.stateCode,
@@ -57,6 +59,9 @@ export async function POST(req: Request) {
       billCA: body.billCA || false,
       billSlip: body.billSlip || false,
       graceDays: parseInt(body.graceDays || 0),
+
+      paymentPreference: body.paymentPreference || "Credit",
+  
       maxAllowedCredit: new Prisma.Decimal(body.maxAllowedCredit || 0),
       openingBalance: new Prisma.Decimal(body.openingAmt || 0), // Base opening balance
       openingMode: body.openingMode || "Debit",
@@ -66,16 +71,26 @@ export async function POST(req: Request) {
     // --- CASE 1: UPDATE EXISTING PARTY ---
     if (body.id) {
       const result = await prisma.$transaction(async (tx) => {
+        // 0. Get Old Record to find existing Ledger
+        const oldParty = await tx.party.findUnique({ where: { id: body.id } });
+        const oldLedgerCode = `ACC-${oldParty?.partyCode}`;
+
         // 1. Update Party
         const updatedParty = await tx.party.update({
           where: { id: body.id },
           data: partyData
         });
 
-        // 2. Sync Ledger Name if trade name changed
+        // 2. Sync Ledger (Update Code + Name + Opening Balance)
         await tx.ledger.updateMany({
-          where: { code: `ACC-${updatedParty.partyCode}` },
-          data: { name: updatedParty.tradeName }
+          where: { code: oldLedgerCode },
+          data: { 
+            code: `ACC-${updatedParty.partyCode}`,
+            name: updatedParty.tradeName,
+            openingBalance: updatedParty.openingBalance,
+            openingMode: updatedParty.openingMode,
+            maxCredit: updatedParty.maxAllowedCredit
+          }
         });
 
         return updatedParty;

@@ -88,7 +88,7 @@ export const sidebarRoutes: SidebarItem[] = [
       { title: "Bill Summary", href: "/billing/bill-book" },
       { title: "Proforma (PI) Entry", href: "/billing/pi" },
       {title: "Proforma (PI) Summary", href: "/billing/pi-book"},
-      { title: "Bill Book", href: "/billing/book" },
+      { title: "Bill Book", href: "/billing/bill-book" },
       { title: "Accrued Rent Report", href: "/reports/accrued-detail" },
       { title: "Revenue Analysis", href: "/reports/accrued-summary" },
     ]
@@ -104,9 +104,9 @@ export const sidebarRoutes: SidebarItem[] = [
       {
         title: "Ledger Statement", href: "/accounts/ledger-statement"
       },
-      { title: "GST Summary", href: "/accounts/gst-summary" },
-  { title: "GST 3B", href: "/accounts/gstr-3b" },
-      { title: "Balance Sheet", href: "/accounts/balance-sheet" },
+      // { title: "GST Summary", href: "/accounts/gst-summary" },
+  // { title: "GST 3B", href: "/accounts/gstr-3b" },
+      // { title: "Balance Sheet", href: "/accounts/balance-sheet" },
       { title: "Profit & Loss", href: "/accounts/profit-loss" },
     ]
   },
@@ -115,8 +115,8 @@ export const sidebarRoutes: SidebarItem[] = [
     title: "Utilities",
     icon: Settings,
     submenu: [
-      { title: "Create User", href: "/admin/users" },
-      { title: "Activity Log", href: "/admin/logs" },
+      { title: "Admin Settings", href: "/admin/settings" },
+      // { title: "Activity Log", href: "/admin/logs" },
       { title: "TDS Master", href: "/admin/tds" },
       { title: "Narration Master", href: "/admin/narrations" },
        

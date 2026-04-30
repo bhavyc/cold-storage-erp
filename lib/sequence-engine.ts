@@ -14,3 +14,15 @@ export async function getNextNumber(entityType: string, tx: any) {
 
   return finalId;
 }
+
+export async function peekNextNumber(entityType: string) {
+  const sequence = await prisma.systemSequence.findUnique({
+    where: { entityType }
+  });
+
+  const nextNum = (sequence?.lastNumber || 0) + 1;
+  const paddedNumber = nextNum.toString().padStart(4, '0');
+  const finalId = sequence?.prefix ? `${sequence.prefix}${paddedNumber}` : paddedNumber;
+
+  return finalId;
+}

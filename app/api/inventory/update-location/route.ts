@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
-// 1. GET: Fetch Lots in a range (Image 85 Top Bar)
+// 1. GET: Fetch Lots in a range
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -28,15 +28,16 @@ export async function GET(req: Request) {
 
     return NextResponse.json(lots);
   } catch (error) {
-    return NextResponse.json({ error: "Search failed" }, { status: 500 });
+    return NextResponse.json({ error: "Fetch failed" }, { status: 500 });
   }
 }
 
-// 2. PATCH: Bulk Update Stock Metadata (Image 85 Red Update Button)
+// 2. PATCH: Bulk Update Stock Registry
+
 export async function PATCH(req: Request) {
   try {
     const body = await req.json();
-    const { updates } = body; // Array of lot changes
+    const { updates } = body;
 
     const result = await prisma.$transaction(
       updates.map((item: any) => 
@@ -49,15 +50,39 @@ export async function PATCH(req: Request) {
             marka: item.marka,
             pMarka: item.pMarka,
             variety: item.variety,
-            // rate, labour, weight logic if needed based on Image 85 columns
-            perUnitWgt: new Prisma.Decimal(item.perUnitWgt),
+            perUnitWgt: new Prisma.Decimal(item.perUnitWgt || 0),
+            
+            // ✅ FIX: Nested Update ki jagah Upsert use kiya hai
+            // Agar InwardEntry table mein record nahi hai, toh ye create karega
+            inwardEntry: {
+              upsert: {
+                update: {
+                  truckNo: item.truckNo,
+                  deliveryPerson: item.deliveryPerson,
+                  remarks: item.remarks
+                },
+                create: {
+                  truckNo: item.truckNo || "",
+                  deliveryPerson: item.deliveryPerson || "",
+                  remarks: item.remarks || "",
+                  // Mandatory field default: arrivalDate hi mrDate ban jayegi
+                  mrDate: item.arrivalDate ? new Date(item.arrivalDate) : new Date()
+                }
+              }
+            }
           }
         })
       )
     );
 
-    return NextResponse.json({ message: "Stock Locations Synchronized", count: result.length });
+    return NextResponse.json({ 
+        message: `${result.length} Stock records synchronized!`, 
+        count: result.length 
+    });
   } catch (error: any) {
-    return NextResponse.json({ error: "Update failed", details: error.message }, { status: 400 });
+    console.error("BULK_UPDATE_ERR:", error);
+    return NextResponse.json({ 
+        error: "Update failed: Ensure all lot data is valid." 
+    }, { status: 400 });
   }
 }

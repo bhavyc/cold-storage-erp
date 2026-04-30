@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🧊 Cold Storage ERP
 
-## Getting Started
+A professional, full-stack Enterprise Resource Planning (ERP) system designed specifically for managing cold storage operations. Built with modern web technologies for high performance, reliability, and ease of use.
 
-First, run the development server:
+## 🚀 Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+### 📦 Inward & Outward Management
+- **Material Receipt (MR):** Track incoming stock with detailed lot and marka information.
+- **Gate Pass (GP):** Efficiently manage outgoing goods with lot-lookup and automated documentation.
+- **Stock Tracking:** Real-time visibility into inventory across different chambers and pallets.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 💰 Billing & Finance
+- **Automated Invoicing:** Generate professional invoices and proforma invoices (PI).
+- **Accounting Integration:** Automatic journal entries and P&L posting on invoice generation.
+- **Ledger Management:** Maintain accurate party-wise ledgers and revenue accounts.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 🏢 Warehouse Operations
+- **Pallet Assignment:** Optimize space utilization with intelligent pallet tracking.
+- **Chamber Analysis:** Monitor storage capacity and distribution across various chambers.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 📊 Dashboard & Analytics
+- **Live Metrics:** Real-time overview of business performance.
+- **Visual Analytics:** Interactive charts for stock levels, billing trends, and operational efficiency.
 
-## Learn More
+### 🔐 Security & Access
+- **Role-Based Access:** Secure authentication and authorization for different staff roles.
+- **Audit Integrity:** Precise tracking of all transactions for audit compliance.
 
-To learn more about Next.js, take a look at the following resources:
+## 🛠️ Tech Stack
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Framework:** [Next.js 15+](https://nextjs.org/) (App Router)
+- **Language:** [TypeScript](https://www.typescriptlang.org/)
+- **Database:** [PostgreSQL](https://www.postgresql.org/) with [Prisma ORM](https://www.prisma.io/)
+- **Authentication:** [NextAuth.js](https://next-auth.js.org/)
+- **Styling:** [Tailwind CSS](https://tailwindcss.com/)
+- **Charts:** [Recharts](https://recharts.org/)
+- **Icons:** [Lucide React](https://lucide.dev/)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## ⚙️ Getting Started
 
-## Deploy on Vercel
+### Prerequisites
+- Node.js 20+
+- PostgreSQL database instance
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Installation
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/bhavyc/cold-storage-erp.git
+   cd cold-storage-erp
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Environment Setup:**
+   Create a `.env` file in the root directory and add your connection strings:
+   ```env
+   DATABASE_URL="postgresql://user:password@localhost:5432/cold_storage"
+   NEXTAUTH_SECRET="your-secret"
+   NEXTAUTH_URL="http://localhost:3000"
+   ```
+
+4. **Database Migration:**
+   ```bash
+   npx prisma generate
+   npx prisma db push
+   ```
+
+5. **Run Development Server:**
+   ```bash
+   npm run dev
+   ```
+
+## 📄 License
+
+This project is private and proprietary.

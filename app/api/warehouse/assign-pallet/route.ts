@@ -12,6 +12,12 @@ export async function POST(req: Request) {
       const autoAssignNo = await getNextNumber("PAL", tx);
 
       for (const row of assignments) {
+        // Validation: Pallet already occupied check
+        const existing = await tx.pallet.findUnique({ where: { palletNo: row.palletNo } });
+        if (existing && existing.status === "Occupied" && existing.lotId !== lotId) {
+          throw new Error(`Pallet ${row.palletNo} is already occupied by Lot ${existing.lotId}. Kripya empty pallet chunein!`);
+        }
+
         await tx.pallet.upsert({
           where: { palletNo: row.palletNo },
           update: {
@@ -40,35 +46,65 @@ export async function POST(req: Request) {
   }
 }
 
-// GET API (Search ke liye)
+ 
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const lotNo = searchParams.get("lotNo");
+    const query = searchParams.get("query"); // Frontend se 'query' aa raha hai
+    const lotNo = searchParams.get("lotNo"); // Backward compatibility ke liye
 
-    if (!lotNo) return NextResponse.json({ error: "Lot No missing" }, { status: 400 });
+    // Search term decide karein
+    const searchTerm = query || lotNo;
 
-    const lot = await prisma.lot.findUnique({
-      where: { lotNo: lotNo },
-      include: { 
-        pallets: true, 
-        item: { select: { name: true } } 
-      }
+    if (!searchTerm) {
+      return NextResponse.json({ error: "Bhai, search karne ke liye kuch toh dalo!" }, { status: 400 });
+    }
+
+    // ✅ SMART SEARCH: LotNo, Party Name, ya Marka mein dhoondo
+    const lots = await prisma.lot.findMany({
+      where: {
+        AND: [
+          { balanceQty: { gt: 0 } }, // Sirf wo jisme stock bacha ho
+          {
+            OR: [
+              { lotNo: { contains: searchTerm, mode: 'insensitive' } },
+              { marka: { contains: searchTerm, mode: 'insensitive' } },
+              { party: { tradeName: { contains: searchTerm, mode: 'insensitive' } } }
+            ]
+          }
+        ]
+      },
+      include: {
+        party: { select: { tradeName: true } },
+        item: { select: { name: true } },
+        pallets: { select: { assignedQty: true } } // Allocation check karne ke liye
+      },
+      take: 10 // Top 10 results hi bhejo taaki speed bani rahe
     });
 
-    if (!lot) return NextResponse.json({ error: "Lot No nahi mila!" }, { status: 404 });
-
-    // Kitni bori pehle se pallets par hain unka sum
-    const allocatedSum = lot.pallets.reduce((sum, p) => sum + (p.assignedQty || 0), 0);
-
-    return NextResponse.json({
-      lotId: lot.id,
-      itemName: lot.item.name,
-      receivedQty: lot.receivedQty,
-      allocatedQty: allocatedSum,
-      unallocated: lot.receivedQty - allocatedSum
+    // Data ko format karke bhejo (Math calculations ke saath)
+    const formattedLots = lots.map(lot => {
+      const alreadyAllocated = lot.pallets.reduce((sum, p) => sum + (p.assignedQty || 0), 0);
+      return {
+        lotId: lot.id,
+        lotNo: lot.lotNo,
+        partyName: lot.party.tradeName,
+        itemName: lot.item.name,
+        marka: lot.marka || "-",
+        arrivalDate: lot.arrivalDate,
+        receivedQty: lot.receivedQty,
+        allocatedQty: alreadyAllocated,
+        unallocated: lot.receivedQty - alreadyAllocated
+      };
     });
-  } catch (error) {
-    return NextResponse.json({ error: "Server Error" }, { status: 500 });
+
+    // Agar sirf ek lot mila, toh object bhejo, warna array
+    return NextResponse.json(formattedLots);
+
+  } catch (error: any) {
+    console.error("SEARCH_LOT_ERR:", error);
+    return NextResponse.json({ error: "Server Error: Search fail ho gaya" }, { status: 500 });
   }
 }
+

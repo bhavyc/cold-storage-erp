@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-export async function GET(req: Request, { params }: { params: { lotId: string } }) {
+export async function GET(req: Request, props: { params: Promise<{ lotId: string }> }) {
+  const params = await props.params;
   const lot = await prisma.lot.findUnique({
     where: { id: params.lotId },
     include: { party: true, item: true, chamber: true }

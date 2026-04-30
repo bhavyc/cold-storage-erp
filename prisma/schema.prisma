@@ -95,6 +95,7 @@ model Party {
   address          String?
   pincode          String?
   contactPerson    String?
+  paymentPreference String @default("Credit") // "Cash" ya "Credit"
   designation      String?
   email            String?
   mobiles          String[] // Up to 10 WhatsApp Numbers
@@ -218,8 +219,8 @@ model Lot {
   unit            Unit     @relation(fields: [unitId], references: [id])
   pallets         Pallet[]
   // Location Details
-  chamberId       String
-  chamber         Chamber  @relation(fields: [chamberId], references: [id])
+  chamberId       String?
+  chamber         Chamber?  @relation(fields: [chamberId], references: [id])
   floor           String?
   pole            String?
   palletNo        String?
@@ -236,6 +237,7 @@ model Lot {
   totalNetWgt     Decimal  @db.Decimal(10, 3)
   
   arrivalDate     DateTime
+  lotValue        Decimal? @default(0) @db.Decimal(10, 2)
   uptoDate        DateTime? // CRITICAL: Track rent payment continuity (Images 37/68)
 
   inwardEntry     InwardEntry?
@@ -369,6 +371,7 @@ model Ledger {
   maxCredit      Decimal      @default(0) @db.Decimal(15, 2)
   
   voucherEntries VoucherItem[]
+  tdsMasters     TDSMaster[]
 }
 
 model Voucher {
@@ -402,6 +405,8 @@ model TDSMaster {
   panStatus      Boolean @default(true)
   minThreshold   Decimal @default(0) @db.Decimal(15, 2)
   tdsPercentage  Decimal @default(0) @db.Decimal(5, 2)
+  ledgerId       String? // Mapping to TDS Payable Ledger
+  ledger         Ledger? @relation(fields: [ledgerId], references: [id])
 }
 
 model NarrationMaster {

@@ -4,13 +4,21 @@ import { prisma } from "@/lib/prisma";
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
+    
+    // 1. Saare params ko safely nikalo
     const fromDate = searchParams.get("fromDate");
     const toDate = searchParams.get("toDate");
     const partyId = searchParams.get("partyId");
+    const statusParam = searchParams.get("status"); // Yahan galti thi, ise define kiya
 
     const where: any = {};
 
-    // Date Filter logic
+    // 2. Status Filter: Agar frontend se status bheja hai (jaise GP Modal se 'Pending')
+    if (statusParam && statusParam !== "All") {
+      where.status = statusParam;
+    }
+
+    // 3. Date Filter logic
     if (fromDate && toDate) {
       where.date = {
         gte: new Date(fromDate),
@@ -18,7 +26,7 @@ export async function GET(req: Request) {
       };
     }
 
-    // Party Filter logic
+    // 4. Party Filter logic
     if (partyId && partyId !== "All") {
       where.partyId = partyId;
     }
@@ -26,15 +34,14 @@ export async function GET(req: Request) {
     const demands = await prisma.demand.findMany({
       where,
       include: {
-        party: true, // Ab ye error nahi dega schema update ke baad
+        party: true,
         items: {
           include: {
             lot: {
               include: { 
-
-                 item: true,    // Item name ke liye
-            unit: true,    // Packing/Unit name ke liye (YAHAN GADBAD THI)
-            chamber: true, // Location ke liye
+                item: true,
+                unit: true,
+                chamber: true,
               }
             }
           }
@@ -45,7 +52,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json(demands);
   } catch (error: any) {
-    console.error("REGISTER_FETCH_ERROR:", error);
+    console.error("REGISTER_FETCH_ERROR:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

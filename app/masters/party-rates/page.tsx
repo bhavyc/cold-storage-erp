@@ -9,22 +9,32 @@ export default function PartyRateListPage() {
 
   const [data, setData] = useState<any[]>([]);
   const [parties, setParties] = useState<any[]>([]);
+  const [items, setItems] = useState<any[]>([]);
+  const [units, setUnits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterParty, setFilterParty] = useState("All");
+  const [filterItem, setFilterItem] = useState("All");
+  const [filterUnit, setFilterUnit] = useState("All");
 
   // ✅ Fetch initial data safely
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [pRes, rRes] = await Promise.all([
+        const [pRes, iRes, uRes, rRes] = await Promise.all([
           fetch("/api/masters/party"),
+          fetch("/api/masters/items"),
+          fetch("/api/masters/units"),
           fetch("/api/masters/party-rates"),
         ]);
 
         const pJson = await pRes.json();
+        const iJson = await iRes.json();
+        const uJson = await uRes.json();
         const rJson = await rRes.json();
 
         setParties(Array.isArray(pJson) ? pJson : pJson?.data || []);
+        setItems(Array.isArray(iJson) ? iJson : iJson?.data || []);
+        setUnits(Array.isArray(uJson) ? uJson : uJson?.data || []);
         setData(Array.isArray(rJson) ? rJson : rJson?.data || []);
       } catch (error) {
         console.error("Fetch error:", error);
@@ -43,7 +53,7 @@ export default function PartyRateListPage() {
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/masters/party-rates?partyId=${filterParty}`
+        `/api/masters/party-rates?partyId=${filterParty}&itemId=${filterItem}&unitId=${filterUnit}`
       );
       const result = await res.json();
 
@@ -104,8 +114,13 @@ export default function PartyRateListPage() {
           <label className="font-bold text-gray-400 uppercase mb-1 block">
             Item Name
           </label>
-          <select className="w-full border p-1.5 rounded bg-white">
-            <option>All Items</option>
+          <select 
+            className="w-full border p-1.5 rounded bg-white font-bold text-slate-700"
+            value={filterItem}
+            onChange={(e) => setFilterItem(e.target.value)}
+          >
+            <option value="All">All Items</option>
+            {items.map(it => <option key={it.id} value={it.id}>{it.name}</option>)}
           </select>
         </div>
 
@@ -113,8 +128,13 @@ export default function PartyRateListPage() {
           <label className="font-bold text-gray-400 uppercase mb-1 block">
             Unit Name
           </label>
-          <select className="w-full border p-1.5 rounded bg-white">
-            <option>All Units</option>
+          <select 
+            className="w-full border p-1.5 rounded bg-white font-bold text-slate-700"
+            value={filterUnit}
+            onChange={(e) => setFilterUnit(e.target.value)}
+          >
+            <option value="All">All Units</option>
+            {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
         </div>
 

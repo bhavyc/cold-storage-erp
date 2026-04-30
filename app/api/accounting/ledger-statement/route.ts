@@ -1,54 +1,55 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const ledgerId = searchParams.get("ledgerId");
-    const fromDate = searchParams.get("fromDate");
-    const toDate = searchParams.get("toDate");
+    
+    if (!ledgerId) return NextResponse.json({ error: "Select Account" }, { status: 400 });
 
-    if (!ledgerId) return NextResponse.json({ error: "Select Account Head" }, { status: 400 });
-
-    // Fetch transactions from VoucherItems
-    const entries = await prisma.voucherItem.findMany({
-      where: {
-        ledgerId: ledgerId,
-        voucher: {
-          date: {
-            gte: fromDate ? new Date(fromDate) : undefined,
-            lte: toDate ? new Date(toDate) : undefined,
-          }
-        }
-      },
-      include: {
-        voucher: true
-      },
-      orderBy: { voucher: { date: 'asc' } }
+    // 1. Ledger details aur Opening Balance laao
+    const ledger = await prisma.ledger.findUnique({
+      where: { id: ledgerId }
     });
 
-    // Fetch Opening Balance for calculation
-    const ledger = await prisma.ledger.findUnique({ where: { id: ledgerId } });
-    let runningBalance = ledger ? Number(ledger.openingBalance) : 0;
+    if (!ledger) return NextResponse.json({ error: "Ledger not found" }, { status: 404 });
 
-    const statement = entries.map(entry => {
-      const dr = Number(entry.debit);
-      const cr = Number(entry.credit);
-      runningBalance = runningBalance + dr - cr;
+    // 2. Sirf is Ledger se judi saari entries laao (VoucherItems)
+    const entries = await prisma.voucherItem.findMany({
+      where: { ledgerId: ledgerId },
+      include: {
+        voucher: true // Poora voucher data (Date, Remarks) saath mein
+      },
+      orderBy: {
+        voucher: { date: 'asc' }
+      }
+    });
+
+    // 3. Running Balance Calculation (Respect Opening Mode)
+    let currentBalance = ledger.openingMode === "Credit" 
+      ? -Number(ledger.openingBalance)  // Credit nature = negative start
+      : Number(ledger.openingBalance);  // Debit nature = positive start
+    
+    const statement = entries.map(item => {
+      const dr = Number(item.debit);
+      const cr = Number(item.credit);
+      
+      // Balance logic: Dr badhta hai, Cr ghat-ta hai (Assets/Debtors ke liye)
+      currentBalance = currentBalance + dr - cr;
 
       return {
-        date: entry.voucher.date,
-        particular: entry.voucher.remarks || entry.narration || "Transaction",
-        billedQty: 0, // Logic to fetch from linked Invoice if applicable
+        date: item.voucher.date,
+        particular: item.voucher.remarks || item.narration || "Transaction Entry",
+        billedQty: 0, 
         debit: dr,
         credit: cr,
-        balance: runningBalance
+        balance: currentBalance
       };
     });
 
     return NextResponse.json(statement);
   } catch (error) {
-    return NextResponse.json({ error: "Failed to generate statement" }, { status: 500 });
+    return NextResponse.json({ error: "Statement fetch failed" }, { status: 500 });
   }
 }

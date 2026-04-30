@@ -1,95 +1,155 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { InvoiceSchema } from "@/lib/validations/billing";
-import { getNextNumber } from "@/lib/sequence-engine"; // Import Engine
+import { getNextNumber } from "@/lib/sequence-engine";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    
-    // 1. Zod Validation (Prevents crashes)
-    const parsedData = InvoiceSchema.parse(body);
-    const { header, items } = parsedData as any;
+    const { header, items, totals } = body;
 
-    return await prisma.$transaction(async (tx) => {
-      
-      // 2. GENERATE AUTOMATIC INVOICE NO (Fix: Race Condition Protection)
+    const result = await prisma.$transaction(async (tx) => {
+      // 0. Fetch Party Flags for Billing Type
+      const party = await tx.party.findUnique({ where: { id: header.partyId } });
+      let dynamicBillingType = "Tax Invoice";
+      if (party?.billNilLot) dynamicBillingType = "Nill Lot Invoice";
+      else if (party?.billBalance) dynamicBillingType = "Balance Stock Invoice";
+      else if (party?.billMonthly) dynamicBillingType = "Monthly Cycle Invoice";
+
+      // 1. Generate Invoice No
       const autoInvoiceNo = await getNextNumber("INV", tx);
 
-      // 3. Fetch Party to check GST Status (Aapka existing logic)
-      const party = await tx.party.findUniqueOrThrow({ where: { id: header.partyId } });
-      const isIGST = party.stateCode !== "06"; // Home State Code check
-      const isRegistered = party.gstType === "Registered";
-
-      let totalRent = new Prisma.Decimal(0);
-      let totalLab = new Prisma.Decimal(0);
-      let totalQty = 0;
-
-      // 4. Recalculate everything safely on the server
-      const invoiceItemsData = [];
-      for (const it of items) {
-        const itemMaster = await tx.item.findUniqueOrThrow({ where: { id: it.itemId } });
-        
-        const rentAmt = new Prisma.Decimal(it.qty).mul(it.rentRate).mul(it.period);
-        const labAmt = new Prisma.Decimal(it.qty).mul(it.labourRate);
-        
-        totalRent = totalRent.add(rentAmt);
-        totalLab = totalLab.add(labAmt);
-        totalQty += it.qty;
-
-        invoiceItemsData.push({
-          lotId: it.lotId,
-          qty: it.qty,
-          period: it.period,
-          rentRate: new Prisma.Decimal(it.rentRate),
-          labourRate: new Prisma.Decimal(it.labourRate),
-          rentAmt,
-          labourAmt: labAmt,
-          gstRate: itemMaster.gstRate
-        });
-      }
-
-      // 5. Server-Side Tax Calculation
-      const taxableValue = totalRent.add(totalLab);
-      let cgst = new Prisma.Decimal(0);
-      let sgst = new Prisma.Decimal(0);
-      let igst = new Prisma.Decimal(0);
-
-      if (isRegistered) {
-        const gstRate = new Prisma.Decimal(18); // Default 18% or fetch from item
-        const taxAmt = taxableValue.mul(gstRate).div(100);
-        
-        if (isIGST) {
-          igst = taxAmt;
-        } else {
-          cgst = taxAmt.div(2);
-          sgst = taxAmt.div(2);
-        }
-      }
-
-      const grossAmount = taxableValue.add(cgst).add(sgst).add(igst);
-      const netAmount = new Prisma.Decimal(Math.round(grossAmount.toNumber()));
-      const roundOff = netAmount.sub(grossAmount);
-
-      // 6. CREATE INVOICE (With Automatic Number)
+      // 2. Create Invoice Record
       const invoice = await tx.invoice.create({
         data: {
-          invoiceNo: autoInvoiceNo, // Auto-generated safe number
+          invoiceNo: autoInvoiceNo,
           date: new Date(header.billDate),
           partyId: header.partyId,
-          billingType: header.billingType,
-          totalQty,
-          totalRent,
-          totalLabour: totalLab,
-          taxableValue,
-          cgst, sgst, igst, roundOff, netAmount,
+          billingType: dynamicBillingType,
+          totalQty: totals.totalQty,
+          totalRent: new Prisma.Decimal(totals.rentTotal),
+          totalLabour: new Prisma.Decimal(totals.labourTotal),
+          taxableValue: new Prisma.Decimal(totals.taxableValue),
+          cgst: new Prisma.Decimal(totals.cgstAmt),
+          sgst: new Prisma.Decimal(totals.sgstAmt),
+          igst: new Prisma.Decimal(totals.igstAmt),
+          roundOff: new Prisma.Decimal(totals.roundOff),
+          netAmount: new Prisma.Decimal(totals.netAmt),
           status: "Unpaid",
-          items: { create: invoiceItemsData }
+          items: {
+            create: items.map((it: any) => ({
+              lotId: it.lotId,
+              qty: it.qty,
+              period: it.prd,
+              rentRate: new Prisma.Decimal(it.rentRate),
+              labourRate: new Prisma.Decimal(it.labRate),
+              rentAmt: new Prisma.Decimal(it.rentAmt),
+              labourAmt: new Prisma.Decimal(it.labourAmt),
+            }))
+          }
         }
       });
 
-      // 7. Update Lot UptoDates (Important for next billing cycle)
+      // 3. --- ACCOUNTING POSTING (GST SPLIT) ---
+      const settings = await tx.systemSettings.findMany({
+        where: { key: { in: ['RENT_INCOME_ID', 'CGST_PAYABLE_ID', 'SGST_PAYABLE_ID', 'IGST_PAYABLE_ID', 'ROUNDOFF_LEDGER_ID'] } }
+      });
+      const getSetting = (key: string) => settings.find(s => s.key === key)?.value;
+      
+      const incomeId = getSetting('RENT_INCOME_ID');
+      const cgstId = getSetting('CGST_PAYABLE_ID');
+      const sgstId = getSetting('SGST_PAYABLE_ID');
+      const igstId = getSetting('IGST_PAYABLE_ID');
+      const roundOffId = getSetting('ROUNDOFF_LEDGER_ID');
+
+      // B. Kisan ka Ledger dhoondo (Search by unique code pattern)
+      const partyLedger = await tx.ledger.findFirst({ where: { code: `ACC-${party?.partyCode}` } });
+
+      if (incomeId && partyLedger) {
+        const autoVocNo = await getNextNumber("VOC", tx);
+        
+        // Build credit entries dynamically (only non-zero amounts)
+        const creditEntries: any[] = [
+          // Rent Income = Taxable Value only (NOT net amount)
+          { ledgerId: incomeId, debit: 0, credit: invoice.taxableValue, narration: "Storage Rent Earned" }
+        ];
+        
+        // CGST Payable
+        if (cgstId && Number(invoice.cgst) > 0) {
+          creditEntries.push({ ledgerId: cgstId, debit: 0, credit: invoice.cgst, narration: `CGST @${totals.cgstAmt > 0 ? '9%' : '0%'}` });
+        }
+        // SGST Payable
+        if (sgstId && Number(invoice.sgst) > 0) {
+          creditEntries.push({ ledgerId: sgstId, debit: 0, credit: invoice.sgst, narration: `SGST @${totals.sgstAmt > 0 ? '9%' : '0%'}` });
+        }
+        // IGST Payable
+        if (igstId && Number(invoice.igst) > 0) {
+          creditEntries.push({ ledgerId: igstId, debit: 0, credit: invoice.igst, narration: `IGST @18%` });
+        }
+        // Round-Off (can be Dr or Cr)
+        if (roundOffId && Number(invoice.roundOff) !== 0) {
+          const ro = Number(invoice.roundOff);
+          creditEntries.push({ 
+            ledgerId: roundOffId, 
+            debit: ro < 0 ? new Prisma.Decimal(Math.abs(ro)) : 0, 
+            credit: ro > 0 ? new Prisma.Decimal(ro) : 0, 
+            narration: "Round Off Adjustment" 
+          });
+        }
+
+        await tx.voucher.create({
+          data: {
+            voucherNo: autoVocNo,
+            date: new Date(header.billDate),
+            vocType: "Journal",
+            group: "Journal",
+            totalAmount: invoice.netAmount,
+            remarks: `Sales Posting for Bill No: ${invoice.invoiceNo}`,
+            items: {
+              create: [
+                // Kisan ko DEBIT karo (Full Net Amount — udhaar chadh gaya)
+                { ledgerId: partyLedger.id, debit: invoice.netAmount, credit: 0, narration: `Bill Generated - ${invoice.invoiceNo}` },
+                // Credits (Income + GST + RoundOff)
+                ...creditEntries
+              ]
+            }
+          }
+        });
+      }
+
+      // 3.5 --- AUTO-SETTLEMENT FOR CASH PARTIES ---
+      if (party?.paymentPreference === "Cash" && partyLedger) {
+        const cashSetting = await tx.systemSettings.findUnique({ where: { key: "CASH_LEDGER_ID" } });
+        const cashLedgerId = cashSetting?.value;
+        
+        if (cashLedgerId) {
+          const receiptVocNo = await getNextNumber("VOC", tx);
+          await tx.voucher.create({
+            data: {
+              voucherNo: receiptVocNo,
+              date: new Date(header.billDate),
+              vocType: "Receipt",
+              group: "Cash",
+              totalAmount: invoice.netAmount,
+              remarks: `Auto-Cash Settlement for Bill: ${invoice.invoiceNo}`,
+              items: {
+                create: [
+                  { ledgerId: cashLedgerId, debit: invoice.netAmount, credit: 0, narration: "Cash Received" },
+                  { ledgerId: partyLedger.id, debit: 0, credit: invoice.netAmount, narration: "Invoice Settlement" }
+                ]
+              }
+            }
+          });
+          
+          // Mark Invoice as Paid
+          await tx.invoice.update({
+            where: { id: invoice.id },
+            data: { status: "Paid" }
+          });
+        }
+      }
+
+      // 4. Update Lot uptoDate
       for (const it of items) {
         await tx.lot.update({
           where: { id: it.lotId },
@@ -98,75 +158,11 @@ export async function POST(req: Request) {
       }
 
       return invoice;
-    }, {
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable // Lock during generation
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+    return NextResponse.json(result);
   } catch (error: any) {
     console.error("INVOICE_POST_ERR:", error);
-    return NextResponse.json({ error: error.message || "Failed to process Invoice" }, { status: 400 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-
-
-// import { NextResponse } from "next/server";
-// import { prisma } from "@/lib/prisma";
-// import { Prisma } from "@prisma/client";
-
-// export async function POST(req: Request) {
-//   try {
-//     const body = await req.json();
-//     const { header, items, totals } = body;
-
-//     return await prisma.$transaction(async (tx) => {
-//       // 1. Generate Invoice No (As per Image 68)
-//       const lastInv = await tx.invoice.findFirst({ orderBy: { invoiceNo: 'desc' } });
-//       const nextNo = lastInv ? (parseInt(lastInv.invoiceNo) + 1).toString() : "101";
-
-//       // 2. Create Invoice
-//       const invoice = await tx.invoice.create({
-//         data: {
-//           invoiceNo: nextNo,
-//           date: new Date(header.billDate),
-//           partyId: header.partyId,
-//           billingType: header.billingType,
-//           fromDate: header.fromDate ? new Date(header.fromDate) : null,
-//           toDate: header.toDate ? new Date(header.toDate) : null,
-//           totalQty: totals.totalQty,
-//           totalRent: new Prisma.Decimal(totals.totalRent),
-//           totalLabour: new Prisma.Decimal(totals.totalLabour),
-//           taxableValue: new Prisma.Decimal(totals.taxableValue),
-//           cgst: new Prisma.Decimal(totals.cgstAmt),
-//           sgst: new Prisma.Decimal(totals.sgstAmt),
-//           igst: new Prisma.Decimal(totals.igstAmt),
-//           roundOff: new Prisma.Decimal(totals.roundOff),
-//           netAmount: new Prisma.Decimal(totals.netAmount),
-//           status: "Unpaid",
-//           items: {
-//             create: items.map((it: any) => ({
-//               lotId: it.lotId,
-//               qty: it.qty,
-//               period: it.period,
-//               rentRate: new Prisma.Decimal(it.rentRate),
-//               labourRate: new Prisma.Decimal(it.labourRate),
-//               rentAmt: new Prisma.Decimal(it.rentAmt),
-//               labourAmt: new Prisma.Decimal(it.labourAmt),
-//             }))
-//           }
-//         }
-//       });
-
-//       // 3. AUTOMATION: Update Lot "Upto-Date" (The Bridge)
-//       // Agli billing yahan se shuru hogi
-//       for (const it of items) {
-//         await tx.lot.update({
-//           where: { id: it.lotId },
-//           data: { uptoDate: new Date(header.billDate) }
-//         });
-//       }
-
-//       return invoice;
-//     });
-//   } catch (error: any) {
-//     return NextResponse.json({ error: error.message }, { status: 400 });
-//   }
-// }

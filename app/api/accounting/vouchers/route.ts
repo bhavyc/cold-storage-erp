@@ -53,23 +53,49 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
+    
+    // Naye UI Filters ko capture karna
     const fromDate = searchParams.get("fromDate");
     const toDate = searchParams.get("toDate");
+    const vocType = searchParams.get("vocType");
+    const mode = searchParams.get("mode"); // Mode actually maps to 'group' in DB
+    const partyId = searchParams.get("partyId");
+
+    // Dynamic Filter Object banana
+    const whereClause: Prisma.VoucherWhereInput = {};
+
+    // 1. Date Filter
+    if (fromDate || toDate) {
+      whereClause.date = {};
+      if (fromDate) whereClause.date.gte = new Date(fromDate);
+      if (toDate) whereClause.date.lte = new Date(toDate);
+    }
+
+    // 2. Voucher Type Filter (Receipt, Payment, etc.)
+    if (vocType && vocType !== "ALL") {
+      whereClause.vocType = vocType;
+    }
+
+    // 3. Mode/Group Filter (Cash, Bank, etc.)
+    if (mode && mode !== "ALL") {
+      whereClause.group = mode;
+    }
+
+    // 4. Party Filter
+    if (partyId && partyId !== "ALL") {
+      whereClause.partyId = partyId;
+    }
 
     const vouchers = await prisma.voucher.findMany({
-      where: {
-        date: {
-          gte: fromDate ? new Date(fromDate) : undefined,
-          lte: toDate ? new Date(toDate) : undefined,
-        }
-      },
+      where: whereClause,
       include: { 
         items: { 
           include: { ledger: true } 
         } 
       },
-      orderBy: { voucherNo: 'desc' } // Newest vouchers first
+      orderBy: { date: 'desc' } // Newest vouchers first
     });
+
     return NextResponse.json(vouchers);
   } catch (error: any) {
     return NextResponse.json({ error: "Failed to fetch vouchers" }, { status: 500 });

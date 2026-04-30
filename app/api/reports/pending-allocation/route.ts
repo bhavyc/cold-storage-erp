@@ -7,8 +7,11 @@ export async function GET(req: Request) {
     const fromLot = searchParams.get("fromLot");
     const toLot = searchParams.get("toLot");
     const partyId = searchParams.get("partyId");
+    const query = searchParams.get("query"); // ✅ Naya Smart Search Param
 
-   const  whereClause: any = {};
+    const whereClause: any = {
+        balanceQty: { gt: 0 } // Sirf wo jinka stock warehouse mein hai
+    };
 
     if (fromLot && toLot) {
         whereClause.lotNo = { gte: fromLot, lte: toLot };
@@ -17,21 +20,29 @@ export async function GET(req: Request) {
         whereClause.partyId = partyId;
     }
 
-    // 1. FIXED: include mein 'palletAllocations' ki jagah 'pallets' use kiya
+    // ✅ SMART FILTER: Name, Item ya Marka se dhoondna
+    if (query) {
+        whereClause.OR = [
+            { lotNo: { contains: query, mode: 'insensitive' } },
+            { marka: { contains: query, mode: 'insensitive' } },
+            { party: { tradeName: { contains: query, mode: 'insensitive' } } },
+            { item: { name: { contains: query, mode: 'insensitive' } } }
+        ];
+    }
+
     const lots = await prisma.lot.findMany({
       where: whereClause,
       include: {
         party: { select: { partyCode: true, tradeName: true } },
         item: { select: { code: true, name: true } },
         unit: { select: { code: true, name: true } },
-        pallets: true // <--- Yahan 'palletAllocations' ko 'pallets' kar diya
+        pallets: { select: { assignedQty: true } } // Allocation check karne ke liye
       },
       orderBy: { lotNo: 'asc' }
     });
 
-    // 2. Math Logic Update
+    // logic to find only those who have "Pending" bags
     const report = lots.map(lot => {
-      // Yahan bhi lot.pallets use hoga
       const allocatedQty = lot.pallets.reduce((sum, p) => sum + (Number(p.assignedQty) || 0), 0);
       const pendingQty = lot.receivedQty - allocatedQty;
 
@@ -41,17 +52,15 @@ export async function GET(req: Request) {
         lotNo: lot.lotNo,
         itemCode: lot.item.code,
         itemName: lot.item.name,
-        unitCode: lot.unit.code,
         unitName: lot.unit.name,
         receivedQty: lot.receivedQty,
         allocatedQty: allocatedQty,
         pendingQty: pendingQty
       };
-    }).filter(row => row.pendingQty > 0);
+    }).filter(row => row.pendingQty > 0); // Sirf wahi dikhao jinka allocation bacha hai
 
     return NextResponse.json(report);
   } catch (error: any) {
-    console.error("PRISMA_ERROR:", error.message);
-    return NextResponse.json({ error: "Report fetch failed" }, { status: 500 });
+    return NextResponse.json({ error: "Report failed" }, { status: 500 });
   }
 }

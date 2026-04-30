@@ -65,7 +65,7 @@ export default function LedgerStatementPage() {
       </div>
 
       <div className="bg-white p-6 border rounded shadow-sm text-center space-y-1">
-        <h1 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Visual Softech</h1>
+        <h1 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Cold Storage</h1>
         <p className="text-[9px] text-gray-500 font-bold">Block B, Plot No A 26, Mohan Cooperative, South Delhi, New Delhi 110044</p>
         <p className="text-[10px] font-black text-indigo-600">Party Ledger Statement</p>
       </div>

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+ 
+import { Prisma } from "@prisma/client";
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -11,33 +14,44 @@ export async function GET(req: Request) {
     const chamberId = searchParams.get("chamberId");
 
     // Dynamic Filter logic
-  const whereClause: any = {
-      date: {
-        gte: fromDate ? new Date(fromDate) : undefined,
-        lte: toDate   ? new Date(toDate)   : undefined,
-      },
-    };
+    const whereClause: any = {};
 
-    // Filter by Party/Item/Chamber inside the related Lot
-    if (partyId && partyId !== "All") whereClause.lot = { ...whereClause.lot, partyId: partyId };
-    if (itemId && itemId !== "All") whereClause.lot = { ...whereClause.lot, itemId: itemId };
-    if (chamberId && chamberId !== "All") whereClause.lot = { ...whereClause.lot, chamberId: chamberId };
+    // 1. Date Range Filter
+    if (fromDate || toDate) {
+      whereClause.date = {};
+      if (fromDate) whereClause.date.gte = new Date(fromDate);
+      if (toDate) whereClause.date.lte = new Date(toDate);
+    }
+
+    // 2. Nested Filters (Lot -> Party/Item/Chamber)
+    // Filter by Party/Item inside the related Lot
+    if ((partyId && partyId !== "All") || (itemId && itemId !== "All") || (chamberId && chamberId !== "All")) {
+      whereClause.lot = {
+        is: {
+           ...(partyId && partyId !== "All" ? { partyId: partyId } : {}),
+           ...(itemId && itemId !== "All" ? { itemId: itemId } : {}),
+           ...(chamberId && chamberId !== "All" ? { chamberId: chamberId } : {}),
+        }
+      };
+    }
 
     const shiftingLogs = await prisma.stockShifting.findMany({
       where: whereClause,
       include: {
         lot: {
           include: {
-            party: { select: { tradeName: true } },
-            item: { select: { name: true } }
+            party: { select: { tradeName: true, partyCode: true } },
+            item: { select: { name: true } },
+            unit: { select: { name: true } }
           }
         }
       },
-      orderBy: { date: 'desc' }
+      orderBy: { date: 'desc' } // Latest movement first
     });
 
     return NextResponse.json(shiftingLogs);
-  } catch (error) {
+  } catch (error: any) {
+    console.error("SHIFT_REPORT_ERR:", error);
     return NextResponse.json({ error: "Failed to fetch shifting logs" }, { status: 500 });
   }
 }

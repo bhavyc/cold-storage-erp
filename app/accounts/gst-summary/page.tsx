@@ -71,7 +71,7 @@ export default function GSTSummaryPage() {
       </div>
 
       <div className="bg-white p-4 border rounded shadow-sm text-center space-y-1">
-        <h1 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Visual Softech</h1>
+        <h1 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Cold Storage</h1>
         <p className="font-bold text-indigo-600 uppercase tracking-widest">GST Summary Report</p>
       </div>
 
@@ -189,7 +189,7 @@ export default function GSTSummaryPage() {
 //       </div>
 
 //       <div className="bg-white p-4 border rounded shadow-sm text-center space-y-1">
-//         <h1 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Visual Softech</h1>
+//         <h1 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Cold Storage</h1>
 //         <p className="font-bold text-indigo-600 uppercase tracking-widest">GST Summary Report</p>
 //       </div>
 

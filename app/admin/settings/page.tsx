@@ -6,11 +6,12 @@ import { toast } from "react-hot-toast";
 
 // ERP ki zaroori keys jo backend use karta hai
 const REQUIRED_SETTINGS = [
-  { key: "CASH_LEDGER_ID", label: "Default Cash Ledger", desc: "Used for Quick Receipts and Cash Sales" },
-  { key: "LABOUR_CONTRACTOR_ID", label: "Labour Contractor (Payable)", desc: "Liability account for workers' payment" },
-  { key: "LABOUR_EXPENSE_ID", label: "Labour Expense Account", desc: "P&L account to track total labour cost" },
-  { key: "CGST_OUTPUT_ID", label: "CGST Output Ledger", desc: "Tax account for Central GST" },
-  { key: "SGST_OUTPUT_ID", label: "SGST Output Ledger", desc: "Tax account for State GST" },
+  { key: "CASH_LEDGER_ID", label: "Default Cash Ledger", desc: "Used for Quick Receipts" },
+  { key: "RENT_INCOME_ID", label: "Rent Income Account", desc: "P&L account for storage revenue" }, // <--- Ye line add karo
+  { key: "LABOUR_CONTRACTOR_ID", label: "Labour Contractor (Payable)", desc: "Liability for workers" },
+  { key: "LABOUR_EXPENSE_ID", label: "Labour Expense Account", desc: "P&L account for labour cost" },
+  { key: "CGST_OUTPUT_ID", label: "CGST Output Ledger", desc: "Tax account" },
+  { key: "SGST_OUTPUT_ID", label: "SGST Output Ledger", desc: "Tax account" },
 ];
 
 export default function SystemSettingsPage() {
@@ -140,7 +141,7 @@ export default function SystemSettingsPage() {
       {/* Footer Meta */}
       <div className="flex justify-between items-center px-2 opacity-50">
         <p className="flex items-center gap-1 font-bold"><ShieldCheck size={14}/> All changes are logged for security</p>
-        <p>Visual Softech v1.0.4</p>
+        <p>Cold Storage v1.0.4</p>
       </div>
 
     </div>

@@ -25,6 +25,10 @@ export async function POST(req: Request) {
           taxableValue: new Prisma.Decimal(totals.taxableValue),
           cgst: new Prisma.Decimal(totals.cgstAmt),
           sgst: new Prisma.Decimal(totals.sgstAmt),
+           igst: new Prisma.Decimal(0),
+          roundOff: new Prisma.Decimal(                         //  
+      totals.netAmt - (totals.taxableValue + totals.cgstAmt + totals.sgstAmt)
+    ),
           netAmount: new Prisma.Decimal(totals.netAmt),
           status: "Draft",
           items: {

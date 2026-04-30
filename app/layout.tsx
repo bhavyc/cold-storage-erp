@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/layout/sidebar";
+import { Toaster } from "react-hot-toast";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Visual Cold Storage ERP",
+  title: "Cold Storage ERP",
   description: "Advanced Cold Storage Management System",
 };
 
@@ -47,7 +48,10 @@ export default function RootLayout({
             </main>
           </div>
         </div>
+        <Toaster position="top-right" />
       </body>
     </html>
+
   );
 }
+

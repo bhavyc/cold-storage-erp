@@ -1,19 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { getNextNumber } from "@/lib/sequence-engine"; // Hamara naya helper
+import { getNextNumber } from "@/lib/sequence-engine";
 
 export async function POST(req: Request) {
   try {
     const { header, items } = await req.json();
 
     const result = await prisma.$transaction(async (tx) => {
-      
-      // 1. GENERATE AUTOMATIC MR NO (Ek Receipt ke liye ek Number)
-      // Agar frontend se nahi aaya (jo ki nahi aana chahiye), toh auto-generate karein.
+      // 1. GENERATE MR NO (Start from 1 logic)
       const sharedMRNo = header.mrNo || await getNextNumber("MR", tx);
 
-      // 2. FETCH SYSTEM LEDGERS FOR LABOUR (Dynamic Fix)
+      // 2. FETCH SYSTEM MAPPINGS
       const settings = await tx.systemSettings.findMany({
         where: { key: { in: ['LABOUR_CONTRACTOR_ID', 'LABOUR_EXPENSE_ID'] } }
       });
@@ -23,178 +21,75 @@ export async function POST(req: Request) {
       const savedLots = [];
 
       for (const item of items) {
-        // 3. GENERATE AUTOMATIC LOT NO (Har bori/item ke liye unique ID)
+        // 3. GENERATE LOT NO (Start from 1)
         const autoLotNo = await getNextNumber("LOT", tx);
-
         const unit = await tx.unit.findUniqueOrThrow({ where: { id: item.unitId } });
         
-        // MATH ENGINE (Decimal Safety)
-        const qty = new Prisma.Decimal(item.qty);
-        const perUnitWgt = new Prisma.Decimal(item.perUnitWgt);
-        const totalTareWgt = qty.mul(unit.emptyWeight);
+        // MATH ENGINE
+        const qty = new Prisma.Decimal(item.qty || 0);
+        const perUnitWgt = new Prisma.Decimal(item.perUnitWgt || 0);
+        const totalTareWgt = qty.mul(unit.emptyWeight || 0);
         const totalNetWgt = qty.mul(perUnitWgt).minus(totalTareWgt);
 
-        // 4. CREATE LOT & INWARD (Automatic Numbers Linked)
+        // 4. CREATE LOT record (Floor/Pole/Marka non-compulsory defaults)
         const lot = await tx.lot.create({
           data: {
-            lotNo: autoLotNo,      // Auto generated
-            mrNo: sharedMRNo,      // Auto generated (Shared for all items in this MR)
+            lotNo: autoLotNo,
+            mrNo: sharedMRNo,
             partyId: header.partyId,
             itemId: item.itemId,
             unitId: item.unitId,
-            chamberId: item.chamberId,
-            floor: item.floor,
-            pole: item.pole,
-            marka: item.marka,
-            receivedQty: item.qty,
-            balanceQty: item.qty,
+           chamberId: item.chamberId && item.chamberId !== "" ? item.chamberId : null, 
+            floor: item.floor || "0",
+            pole: item.pillar || "0", // Map pillar to pole field
+            marka: item.marka || "---",
+            variety: item.variety || "---",
+            receivedQty: parseInt(item.qty) || 0,
+            balanceQty: parseInt(item.qty) || 0,
             perUnitWgt,
             totalTareWgt,
             totalNetWgt,
+            lotValue: new Prisma.Decimal(item.lotValue || 0),
             arrivalDate: new Date(header.mrDate),
             inwardEntry: {
               create: {
                 mrDate: new Date(header.mrDate),
-                truckNo: header.truckNo,
-                deliveryPerson: header.deliveryPerson,
-                billingType: header.billingType,
+                truckNo: header.truckNo || "---",
+                deliveryPerson: header.deliveryPerson || "---",
+                billingType: header.billingType || "Nill Lot",
               }
             }
           }
         });
 
-        // 5. AUTO-ACCOUNTING: Contractor Liability (Lab IN)
-        const laborInAmount = qty.mul(unit.rateToContractorIn);
-        
+        // 5. LABOUR ACCOUNTING (If mappings exist)
+        const laborInAmount = qty.mul(unit.rateToContractorIn || 0);
         if (laborInAmount.gt(0) && contractorId && labourExpId) {
-          // Voucher Number ko bhi automatic kar dete hain sequence engine se
           const autoVocNo = await getNextNumber("VOC", tx);
-
           await tx.voucher.create({
             data: {
-              voucherNo: autoVocNo, // Accounting Sequence
+              voucherNo: autoVocNo,
               date: new Date(header.mrDate),
               vocType: "Journal",
               group: "Journal",
               totalAmount: laborInAmount,
-              remarks: `Labour IN Credit - Lot ${lot.lotNo} (MR: ${sharedMRNo})`,
+              remarks: `Labour IN - Lot ${lot.lotNo}`,
               items: {
                 create: [
-                  { ledgerId: labourExpId, debit: laborInAmount, credit: 0, narration: `Labour Exp for Lot ${lot.lotNo}` },
-                  { ledgerId: contractorId, debit: 0, credit: laborInAmount, narration: `Payable to Contractor IN` }
+                  { ledgerId: labourExpId, debit: laborInAmount, credit: 0, narration: `Exp: Lot ${lot.lotNo}` },
+                  { ledgerId: contractorId, debit: 0, credit: laborInAmount, narration: `Payable: Lot ${lot.lotNo}` }
                 ]
               }
             }
           });
         }
-
         savedLots.push(lot);
       }
       return { mrNo: sharedMRNo, lots: savedLots };
-    }, {
-      // Serializable isolation taaki multiple log ek saath auto-number na le sakein
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable
-    });
+    }, { isolationLevel: "Serializable" });
 
-    return NextResponse.json({ message: "MR and Inventory Processed Successfully", data: result }, { status: 201 });
+    return NextResponse.json({ message: "Success", data: result }, { status: 201 });
   } catch (error: any) {
-    console.error("MR_SAVE_ERROR", error);
-    return NextResponse.json({ error: error.message || "Failed to process MR" }, { status: 400 });
+    return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }
-
-// import { NextResponse } from "next/server";
-// import { prisma } from "@/lib/prisma";
-// import { Prisma } from "@prisma/client";
-
-// export async function POST(req: Request) {
-//   try {
-//     const body = await req.json();
-//     const { header, items } = body;
-
-//     const result = await prisma.$transaction(async (tx) => {
-//       // 1. Auto-increment Lot Number Logic
-//       const lastLot = await tx.lot.findFirst({ orderBy: { lotNo: 'desc' } });
-//       let nextLotId = lastLot ? parseInt(lastLot.lotNo) + 1 : 1001;
-
-//       // Fetch Ledgers for Labour Posting
-//       const contractorLedger = await tx.ledger.findUnique({ where: { code: 'LABOUR_CONTRACTOR' } });
-//       const labourExpLedger = await tx.ledger.findUnique({ where: { code: 'LABOUR_EXPENSE' } });
-
-//       const savedLots = [];
-
-//       for (const item of items) {
-//         // Fetch Unit for Tare logic
-//         const unit = await tx.unit.findUniqueOrThrow({ where: { id: item.unitId } });
-        
-//         // AUTOMATION: Weight Engine (Image 59 Logic)
-//         const qty = new Prisma.Decimal(item.qty);
-//         const perUnitWgt = new Prisma.Decimal(item.perUnitWgt);
-//         const totalProducedWgt = qty.mul(perUnitWgt);
-//         const totalTareWgt = qty.mul(unit.emptyWeight);
-//         const totalNetWgt = totalProducedWgt.minus(totalTareWgt);
-
-//         // 2. Create Lot & Inward Entry Link
-//         const lot = await tx.lot.create({
-//           data: {
-//             lotNo: nextLotId.toString(),
-//             mrNo: header.mrNo,
-//             partyId: header.partyId,
-//             itemId: item.itemId,
-//             unitId: item.unitId,
-//             chamberId: item.chamberId,
-//             floor: item.floor,
-//             pole: item.pole, // Pillar/Pole from image
-//             palletNo: item.palletNo,
-//             marka: item.marka,
-//             pMarka: item.pMarka,
-//             receivedQty: item.qty,
-//             balanceQty: item.qty,
-//             perUnitWgt: perUnitWgt,
-//             totalTareWgt: totalTareWgt,
-//             totalNetWgt: totalNetWgt,
-//             arrivalDate: new Date(header.mrDate),
-//             inwardEntry: {
-//               create: {
-//                 mrDate: new Date(header.mrDate),
-//                 truckNo: header.truckNo,
-//                 deliveryPerson: header.deliveryPerson,
-//                 billingType: header.billingType,
-//                 remarks: item.remarks,
-//               }
-//             }
-//           }
-//         });
-
-//         // 3. AUTOMATION: Contractor Labour IN Hit (Image 14 Logic)
-//         const laborInAmount = qty.mul(unit.rateToContractorIn);
-//         if (laborInAmount.gt(0) && contractorLedger && labourExpLedger) {
-//           await tx.voucher.create({
-//             data: {
-//               voucherNo: `LAB-IN-${lot.lotNo}`,
-//               date: new Date(header.mrDate),
-//               vocType: "Journal",
-//               group: "Labour",
-//               totalAmount: laborInAmount,
-//               remarks: `Labour IN Credit - Lot ${lot.lotNo}`,
-//               items: {
-//                 create: [
-//                   { ledgerId: labourExpLedger.id, debit: laborInAmount, credit: 0 },
-//                   { ledgerId: contractorLedger.id, debit: 0, credit: laborInAmount }
-//                 ]
-//               }
-//             }
-//           });
-//         }
-
-//         savedLots.push(lot);
-//         nextLotId++;
-//       }
-//       return savedLots;
-//     });
-
-//     return NextResponse.json({ message: "MR Saved & Accounting Posted", data: result }, { status: 201 });
-//   } catch (error: unknown) {
-//     return NextResponse.json({ error: error.message }, { status: 400 });
-//   }
-// }
