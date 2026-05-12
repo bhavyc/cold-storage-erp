@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, Suspense } from "react";
 import { Printer, FileSpreadsheet, ArrowLeft, FileCheck, Loader2, Search, Landmark, Calculator, Info, Tag } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 
-export default function PendingBillDetailPage() {
+function PendingBillDetailContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const partyId = searchParams.get("partyId");
@@ -45,13 +45,6 @@ export default function PendingBillDetailPage() {
       rent: acc.rent + row.accruedRent
     }), { qty: 0, rent: 0 });
   }, [filteredReport]);
-
-  // if (loading) return (
-  //   <div className="flex flex-col items-center justify-center h-96 space-y-4">
-  //     <Loader2 className="animate-spin text-indigo-600" size={48} />
-  //     <p className="font-black text-indigo-900 uppercase tracking-widest animate-pulse">Calculating Live Rent Accruals...</p>
-  //   </div>
-  // );
 
   return (
     <div className="space-y-4 text-[10px] animate-in fade-in duration-500">
@@ -182,5 +175,18 @@ export default function PendingBillDetailPage() {
       </div>
 
     </div>
+  );
+}
+
+export default function PendingBillDetailPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col items-center justify-center h-96 space-y-4">
+        <Loader2 className="animate-spin text-indigo-600" size={48} />
+        <p className="font-black text-indigo-900 uppercase tracking-widest animate-pulse">Calculating Live Rent Accruals...</p>
+      </div>
+    }>
+      <PendingBillDetailContent />
+    </Suspense>
   );
 }
