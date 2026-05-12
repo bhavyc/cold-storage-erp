@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Plus, Search, FileSpreadsheet, Printer, Edit, Trash2, Landmark, Loader2, Filter, AlertCircle } from "lucide-react";
+import { Plus, Layers, Search, FileSpreadsheet, Printer, Edit, Trash2, Landmark, Loader2, Filter, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 
@@ -73,10 +73,16 @@ export default function AccountMasterList() {
         </h2>
         <div className="flex gap-2">
            <button 
-             onClick={() => router.push('/accounts/master/add')} 
-             className="bg-orange-500 hover:bg-orange-600 px-5 py-1.5 rounded font-black shadow-md transition-all active:scale-95 text-[10px] uppercase"
+             onClick={() => router.push('/accounts/groups')} 
+             className="bg-indigo-500 hover:bg-indigo-600 px-4 py-1.5 rounded font-black shadow-md transition-all active:scale-95 text-[10px] uppercase flex items-center gap-1"
            >
-             + ADD NEW LEDGER
+             <Layers size={14}/> MANAGE GROUPS
+           </button>
+           <button 
+             onClick={() => router.push('/accounts/master/add')} 
+             className="bg-orange-500 hover:bg-orange-600 px-4 py-1.5 rounded font-black shadow-md transition-all active:scale-95 text-[10px] uppercase flex items-center gap-1"
+           >
+             <Plus size={14}/> ADD NEW LEDGER
            </button>
            <button className="bg-green-600 p-2 rounded shadow hover:bg-green-700"><FileSpreadsheet size={16}/></button>
            <button className="bg-red-500 p-2 rounded shadow hover:bg-red-600"><Printer size={16}/></button>

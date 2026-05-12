@@ -97,6 +97,7 @@ export const sidebarRoutes: SidebarItem[] = [
     title: "Accounts",
     icon: IndianRupee,
     submenu: [
+      { title: "Group Master", href: "/accounts/groups" },
       { title: "Account Master", href: "/accounts/master" },
       { title: "Voucher Entry", href: "/accounts/voucher" },
       {title: "Voucher Summary", href: "/accounts/voucher-summary"},

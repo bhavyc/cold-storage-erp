@@ -17,6 +17,7 @@ enum UserRole {
   OPERATOR
   GATEKEEPER
   ACCOUNTANT
+  CUSTOMER
 }
 
 model User {
@@ -26,6 +27,8 @@ model User {
   password  String
   role      UserRole @default(OPERATOR)
   status    Boolean  @default(true)
+  partyId   String?
+  party     Party?   @relation(fields: [partyId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -99,7 +102,9 @@ model Party {
   designation      String?
   email            String?
   mobiles          String[] // Up to 10 WhatsApp Numbers
-                               
+  
+  users            User[]   // Link to login users
+                                
   // GST & Compliance
   gstType          String?  // Registered, Unregistered, Composition
   stateName        String?
@@ -140,6 +145,7 @@ model Party {
   invoices         Invoice[]
   vouchers         Voucher[]
   specialRates     PartyItemRate[]
+  notifications    ClientNotification[]
 
 
   partyPhoto      String?  // Path to file
@@ -433,4 +439,17 @@ model SystemSequence {
   prefix      String?        // e.g., 'MR-' or 'INV/2026/'
   lastNumber  Int    @default(0)
   updatedAt   DateTime @updatedAt
+}
+
+model ClientNotification {
+  id        String   @id @default(cuid())
+  partyId   String
+  party     Party    @relation(fields: [partyId], references: [id])
+  title     String
+  message   String
+  type      String   @default("INFO") // INFO, SUCCESS, WARNING, DANGER
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([partyId])
 }

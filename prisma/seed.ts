@@ -28,9 +28,9 @@ async function main() {
       where: { code: g.code },
       update: {},
       create: g,
-    });
+    }); 
   }
-  console.log("✅ Account Groups Created.");
+  console.log("Account Groups Created.");
 
   // 2. DEFAULT SYSTEM LEDGERS
   const cashGroup = await prisma.accountGroup.findUnique({ where: { code: "G07" } });

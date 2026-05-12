@@ -24,11 +24,12 @@ export async function POST(req: Request) {
       // 3. CREATE VOUCHER
       const voucher = await tx.voucher.create({
         data: {
-          voucherNo: autoVocNo, // Sequence Engine wala number
+          voucherNo: autoVocNo,
           date: new Date(header.date),
           vocType: header.vocType,
           group: header.group,
           remarks: header.remarks,
+          partyId: header.partyId, // Include partyId
           totalAmount: new Prisma.Decimal(totalDr),
           items: {
             create: items.map((it: any) => ({
@@ -40,6 +41,19 @@ export async function POST(req: Request) {
           }
         }
       });
+
+      // 4. SEND NOTIFICATION IF PARTY IS LINKED
+      if (header.partyId) {
+        await tx.clientNotification.create({
+          data: {
+            partyId: header.partyId,
+            title: "Payment Update",
+            message: `A new ${header.vocType} voucher for ₹${totalDr} has been recorded in your account.`,
+            type: header.vocType === "Receipt" ? "SUCCESS" : "INFO",
+          }
+        });
+      }
+
       return NextResponse.json(voucher, { status: 201 });
     }, {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable // Race condition protection
