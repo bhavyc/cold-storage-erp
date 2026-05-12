@@ -273,8 +273,10 @@ model OutwardEntry {
   netWeight      Decimal  @db.Decimal(10, 3)
   vehicleNo      String?
   personName     String?
+  transporterName String?
   transportRequired Boolean @default(false)
   grNo           String?
+  remarks        String?
 }
 
 model StockShifting {
