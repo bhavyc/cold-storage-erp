@@ -4,12 +4,19 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { sidebarRoutes } from "@/config/sidebar-routes";
-import { ChevronDown, ChevronRight, Snowflake } from "lucide-react";
-import { cn } from "@/lib/utils"; // Standard shadcn utility
+import { ChevronDown, ChevronRight, Snowflake, LogOut } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { signOut, useSession } from "next-auth/react";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
   const [openMenus, setOpenMenus] = useState<string[]>([]);
+
+  // Hide sidebar on Login and Register pages
+  if (pathname === "/admin/login" || pathname === "/admin/register") {
+    return null;
+  }
 
   const toggleMenu = (title: string) => {
     setOpenMenus((prev) =>
@@ -73,11 +80,23 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* User Status Footer */}
-      <div className="p-4 bg-[#1a252f] text-[10px] text-gray-500 border-t border-gray-700">
-        Logged in as: <span className="text-blue-400 font-bold uppercase">Admin</span>
-        <br />
-        Financial Year: <span className="text-white">2025-26</span>
+      {/* User Status Footer with Logout */}
+      <div className="p-4 bg-[#1a252f] border-t border-gray-700">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex flex-col">
+            <span className="text-[10px] text-gray-500 uppercase">Logged in as</span>
+            <span className="text-blue-400 font-bold text-xs truncate w-32">
+              {session?.user?.name || "Admin"}
+            </span>
+          </div>
+          <button 
+            onClick={() => signOut({ callbackUrl: "/admin/login" })}
+            className="p-2 hover:bg-red-500/10 text-gray-400 hover:text-red-400 rounded-lg transition-colors group"
+            title="Logout"
+          >
+            <LogOut size={16} className="group-hover:translate-x-0.5 transition-transform" />
+          </button>
+        </div>
       </div>
     </div>
   );

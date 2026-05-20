@@ -12,11 +12,20 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const res = await fetch("/api/dashboard/stats");
+        const res = await fetch("/api/dashboard/summary");
+        if (!res.ok) throw new Error("Failed to fetch");
         const data = await res.json();
-        setStats(data);
+        
+        // Map the summary API fields to the stats state
+        setStats({
+          totalMR: data.mrCount,
+          totalGP: data.gpCount,
+          totalBills: data.billCount,
+          totalStock: data.totalBal,
+          lastUpdate: new Date().toISOString()
+        });
       } catch (err) {
-        console.error("Dashboard Fetch Error");
+        console.error("Dashboard Fetch Error:", err);
       } finally {
         setLoading(false);
       }

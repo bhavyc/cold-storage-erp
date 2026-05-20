@@ -88,7 +88,7 @@ export default function SystemSettingsPage() {
         <div className="text-amber-600"><Info size={24}/></div>
         <div>
           <p className="font-bold text-amber-800 text-xs">Crucial Configuration Area</p>
-          <p className="text-amber-700">Yahan select kiye gaye Ledgers direct <b>Accounting Vouchers</b> ko control karte hain. Inhe badalne se pehle accountant se mashwara karein.</p>
+          
         </div>
       </div>
 
