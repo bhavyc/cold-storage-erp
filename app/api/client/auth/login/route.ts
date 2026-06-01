@@ -6,53 +6,72 @@ export async function POST(request: Request) {
     const { username, password } = await request.json();
 
     if (!username || !password) {
-      return NextResponse.json({ error: "Username and password are required" }, { status: 400 });
+      return NextResponse.json({ error: "Username and OTP are required" }, { status: 400 });
     }
 
-    // 1. Try to find an existing User record
+    // Treat 'username' as mobile number and 'password' as OTP
+    const mobile = username;
+    const otp = password;
+
+    // 1. Verify OTP in OtpVerification
+    const verification = await prisma.otpVerification.findUnique({
+      where: { mobile: mobile }
+    });
+
+    if (!verification || verification.otp !== otp) {
+      return NextResponse.json({ error: "Invalid OTP. Please try again." }, { status: 401 });
+    }
+
+    if (new Date() > verification.expiresAt) {
+      return NextResponse.json({ error: "OTP has expired. Please request a new one." }, { status: 401 });
+    }
+
+    // 2. Try to find an existing User record
     let user = await prisma.user.findUnique({
-      where: { username: username },
+      where: { username: mobile },
       include: { party: true }
     });
 
-    // 2. If User not found, check if it's a new Farmer trying to login with Mobile No
+    // 3. If User not found, check if it's a new Farmer trying to login with Mobile No
     if (!user) {
-      // Check if username and password are same (Mobile No logic)
-      if (username === password) {
-        // Look for a Party that has this mobile number in their mobiles array
-        const party = await prisma.party.findFirst({
-          where: {
-            mobiles: { has: username }
-          }
-        });
-
-        if (party) {
-          // AUTO-CREATE a User record for this party
-          user = await prisma.user.create({
-            data: {
-              name: party.tradeName,
-              username: username,
-              password: password, // In production, use bcrypt hashing!
-              role: "CUSTOMER",
-              partyId: party.id,
-              status: true
-            },
-            include: { party: true }
-          });
+      // Look for a Party that has this mobile number in their mobiles array
+      const party = await prisma.party.findFirst({
+        where: {
+          mobiles: { has: mobile }
         }
+      });
+
+      if (party) {
+        // AUTO-CREATE a User record for this party
+        user = await prisma.user.create({
+          data: {
+            name: party.tradeName,
+            username: mobile,
+            password: "otp_authenticated", // Placeholder
+            role: "CUSTOMER",
+            partyId: party.id,
+            status: true
+          },
+          include: { party: true }
+        });
       }
     }
 
-    // 3. Final validation
-    if (!user || user.password !== password) {
-      return NextResponse.json({ error: "Invalid Mobile Number or Password" }, { status: 401 });
+    // 4. Final validation
+    if (!user) {
+      return NextResponse.json({ error: "Mobile number is not registered." }, { status: 401 });
     }
 
     if (user.role !== "CUSTOMER") {
       return NextResponse.json({ error: "Access denied. Only customers can login here." }, { status: 403 });
     }
 
-    // 4. Return success with Party ID for session management
+    // 5. Delete OTP verification record after successful validation
+    await prisma.otpVerification.delete({
+      where: { mobile: mobile }
+    }).catch(() => {});
+
+    // 6. Return success with Party ID for session management
     return NextResponse.json({
       success: true,
       data: {

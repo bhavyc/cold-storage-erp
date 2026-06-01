@@ -274,13 +274,17 @@ const handleSubmit = async (e: React.FormEvent) => {
                    <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Party Code *</label>
                    <input required className="w-full border-2 border-slate-100 p-2.5 rounded text-sm bg-slate-50 font-black text-indigo-700 outline-none focus:border-indigo-400" value={formData.partyCode} onChange={e => setFormData({...formData, partyCode: e.target.value.toUpperCase()})} />
                  </div>
-                 <div className="md:col-span-2">
+                 <div className="md:col-span-1">
                    <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Full Trade Name / Kisan Name *</label>
                    <input required className="w-full border-2 border-slate-100 p-2.5 rounded text-sm outline-none focus:border-indigo-400 font-bold uppercase" value={formData.tradeName} onChange={e => setFormData({...formData, tradeName: e.target.value.toUpperCase()})} />
                  </div>
                  <div className="md:col-span-1">
                    <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Proprietor Name</label>
                    <input className="w-full border-2 border-slate-100 p-2.5 rounded text-sm outline-none focus:border-indigo-400 uppercase" value={formData.proprietor} onChange={e => setFormData({...formData, proprietor: e.target.value})} />
+                 </div>
+                 <div className="md:col-span-1">
+                   <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Email Address</label>
+                   <input type="email" className="w-full border-2 border-slate-100 p-2.5 rounded text-sm outline-none focus:border-indigo-400 font-bold" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
                  </div>
                  <div className="md:col-span-4">
                    <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Permanent Address</label>

@@ -21,7 +21,7 @@ export async function PUT(
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
-}
+} 
 
 export async function DELETE(
   req: Request,
