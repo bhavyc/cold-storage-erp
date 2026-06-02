@@ -13,17 +13,22 @@ export async function POST(request: Request) {
     const mobile = username;
     const otp = password;
 
-    // 1. Verify OTP in OtpVerification
-    const verification = await prisma.otpVerification.findUnique({
-      where: { mobile: mobile }
-    });
+    // Hardcoded bypass for Google Play Store Reviewer
+    const isGoogleReviewer = mobile === "1234567890" && otp === "123456";
 
-    if (!verification || verification.otp !== otp) {
-      return NextResponse.json({ error: "Invalid OTP. Please try again." }, { status: 401 });
-    }
+    if (!isGoogleReviewer) {
+      // 1. Verify OTP in OtpVerification
+      const verification = await prisma.otpVerification.findUnique({
+        where: { mobile: mobile }
+      });
 
-    if (new Date() > verification.expiresAt) {
-      return NextResponse.json({ error: "OTP has expired. Please request a new one." }, { status: 401 });
+      if (!verification || verification.otp !== otp) {
+        return NextResponse.json({ error: "Invalid OTP. Please try again." }, { status: 401 });
+      }
+
+      if (new Date() > verification.expiresAt) {
+        return NextResponse.json({ error: "OTP has expired. Please request a new one." }, { status: 401 });
+      }
     }
 
     // 2. Try to find an existing User record
