@@ -52,14 +52,14 @@ export async function POST(req: Request) {
 
       // 3. --- ACCOUNTING POSTING (GST SPLIT) ---
       const settings = await tx.systemSettings.findMany({
-        where: { key: { in: ['RENT_INCOME_ID', 'CGST_PAYABLE_ID', 'SGST_PAYABLE_ID', 'IGST_PAYABLE_ID', 'ROUNDOFF_LEDGER_ID'] } }
+        where: { key: { in: ['RENT_INCOME_ID', 'CGST_OUTPUT_ID', 'SGST_OUTPUT_ID', 'IGST_OUTPUT_ID', 'ROUNDOFF_LEDGER_ID'] } }
       });
       const getSetting = (key: string) => settings.find(s => s.key === key)?.value;
       
       const incomeId = getSetting('RENT_INCOME_ID');
-      const cgstId = getSetting('CGST_PAYABLE_ID');
-      const sgstId = getSetting('SGST_PAYABLE_ID');
-      const igstId = getSetting('IGST_PAYABLE_ID');
+      const cgstId = getSetting('CGST_OUTPUT_ID');
+      const sgstId = getSetting('SGST_OUTPUT_ID');
+      const igstId = getSetting('IGST_OUTPUT_ID');
       const roundOffId = getSetting('ROUNDOFF_LEDGER_ID');
 
       // B. Kisan ka Ledger dhoondo (Search by unique code pattern)
