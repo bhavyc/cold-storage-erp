@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { verifyRole } from "@/lib/auth-guard";
 
 export async function GET() {
   try {
+    const guard = await verifyRole(["ADMIN", "MANAGER", "OPERATOR", "GATEKEEPER"]);
+    if (guard.response) return guard.response as Response;
+
     const chambers = await prisma.chamber.findMany({ orderBy: { code: 'asc' } });
     return NextResponse.json(chambers);
   } catch (error) {
@@ -13,6 +17,9 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const guard = await verifyRole(["ADMIN", "MANAGER"]);
+    if (guard.response) return guard.response as Response;
+
     const body = await req.json();
     
     // Automation: Theoretical Math (L * B * H)

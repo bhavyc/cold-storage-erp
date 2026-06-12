@@ -34,6 +34,12 @@ export default function SystemSettingsPage() {
       data.settings?.forEach((s: any) => {
         initialMappings[s.key] = s.value;
       });
+      
+      // Default to "8888" if ADMIN_RECOVERY_PIN is not in database
+      if (initialMappings["ADMIN_RECOVERY_PIN"] === undefined) {
+        initialMappings["ADMIN_RECOVERY_PIN"] = "8888";
+      }
+      
       setMappings(initialMappings);
     } catch (err) {
       toast.error("Settings load karne mein fail!");
@@ -46,7 +52,13 @@ export default function SystemSettingsPage() {
 
   // 2. Save individual setting
   const saveSetting = async (key: string, value: string) => {
-    if (!value) return toast.error("Pehle Ledger select karein!");
+    if (key === "ADMIN_RECOVERY_PIN") {
+      if (!value || value.length !== 4) {
+        return toast.error("Admin Recovery PIN exactly 4 digits ka hona chahiye!");
+      }
+    } else {
+      if (!value) return toast.error("Pehle Ledger select karein!");
+    }
     
     setIsSaving(key);
     try {
@@ -57,9 +69,11 @@ export default function SystemSettingsPage() {
       });
 
       if (res.ok) {
-        toast.success(`${key} updated successfully!`);
+        const displayName = key === "ADMIN_RECOVERY_PIN" ? "Admin Recovery PIN" : key;
+        toast.success(`${displayName} updated successfully!`);
       } else {
-        toast.error("Save nahi ho paya.");
+        const errorData = await res.json().catch(() => ({}));
+        toast.error(errorData.error || "Save nahi ho paya.");
       }
     } catch (err) {
       toast.error("Network Error!");
@@ -136,6 +150,39 @@ export default function SystemSettingsPage() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Security Config */}
+      <div className="bg-white border rounded-lg shadow-sm p-6 space-y-4">
+        <h3 className="font-bold text-slate-700 uppercase tracking-widest text-xs border-b pb-2 flex items-center gap-2">
+          <ShieldCheck className="text-red-500" size={16}/> Admin Password Recovery Configuration
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+          <div className="space-y-1">
+            <label className="font-black text-gray-500 uppercase text-[9px] tracking-wider block">Admin Recovery PIN (4 Digits)</label>
+            <input 
+              type="text" 
+              maxLength={4}
+              pattern="[0-9]{4}"
+              className="w-full border-2 border-slate-100 p-2 text-center font-black text-indigo-700 outline-none focus:border-indigo-400 bg-white"
+              value={mappings["ADMIN_RECOVERY_PIN"] || ""}
+              onChange={(e) => setMappings({...mappings, "ADMIN_RECOVERY_PIN": e.target.value.replace(/\D/g, "")})}
+            />
+          </div>
+          <div className="text-gray-400 text-[9px] italic">
+            Note: This 4-digit PIN is used on the Login page to reset the Admin account password. Keep it secure and do not share it.
+          </div>
+          <div className="text-right">
+            <button 
+              onClick={() => saveSetting("ADMIN_RECOVERY_PIN", mappings["ADMIN_RECOVERY_PIN"] || "")}
+              disabled={isSaving === "ADMIN_RECOVERY_PIN"}
+              className="bg-red-600 hover:bg-red-700 text-white px-8 py-2 rounded font-black uppercase flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 disabled:opacity-50 ml-auto"
+            >
+              {isSaving === "ADMIN_RECOVERY_PIN" ? <Loader2 size={12} className="animate-spin"/> : <Save size={12}/>}
+              Save PIN
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Footer Meta */}

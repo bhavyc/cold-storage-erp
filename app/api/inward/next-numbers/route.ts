@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { verifyRole } from "@/lib/auth-guard";
 
 // Browser ko purana data dikhane se rokne ke liye
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    const guard = await verifyRole(["ADMIN", "MANAGER", "OPERATOR", "GATEKEEPER"]);
+    if (guard.response) return guard.response as Response;
+
     // 1. Saare MR Numbers uthao
     const allMRs = await prisma.lot.findMany({
       select: { mrNo: true }

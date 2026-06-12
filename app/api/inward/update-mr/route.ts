@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { verifyRole } from "@/lib/auth-guard";
 
 export async function GET(req: Request) {
   try {
+    const guard = await verifyRole(["ADMIN", "MANAGER", "OPERATOR"], req);
+    if (guard.response) return guard.response as Response;
+
     const { searchParams } = new URL(req.url);
     const fetchAll = searchParams.get("all");
     const fromSlip = searchParams.get("fromSlip");
@@ -65,6 +69,9 @@ export async function GET(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
+    const guard = await verifyRole(["ADMIN", "MANAGER", "OPERATOR"], req);
+    if (guard.response) return guard.response as Response;
+
     const body = await req.json();
     const { id, mrDate, billingType, truckNo, deliveryPerson, remarks, lot } = body;
 

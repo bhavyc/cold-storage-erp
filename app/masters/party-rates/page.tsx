@@ -32,7 +32,8 @@ export default function PartyRateListPage() {
         const uJson = await uRes.json();
         const rJson = await rRes.json();
 
-        setParties(Array.isArray(pJson) ? pJson : pJson?.data || []);
+        const rawParties = Array.isArray(pJson) ? pJson : pJson?.data || [];
+        setParties(rawParties.filter((p: any) => p.paymentPreference === "Credit"));
         setItems(Array.isArray(iJson) ? iJson : iJson?.data || []);
         setUnits(Array.isArray(uJson) ? uJson : uJson?.data || []);
         setData(Array.isArray(rJson) ? rJson : rJson?.data || []);

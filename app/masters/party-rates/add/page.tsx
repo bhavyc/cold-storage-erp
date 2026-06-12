@@ -85,7 +85,8 @@ export default function PartyRateEntryPage() {
           fetch("/api/masters/items").then(res => res.json()),
           fetch("/api/masters/units").then(res => res.json())
         ]);
-        setParties(p || []);
+        const creditParties = (p || []).filter((party: any) => party.paymentPreference === "Credit");
+        setParties(creditParties);
         setItems(i || []);
         setUnits(u || []);
       } catch (err) {

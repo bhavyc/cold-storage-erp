@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { verifyRole } from "@/lib/auth-guard";
 
 // 1. GET: Saare saved special rates nikalne ke liye
 export async function GET(req: Request) {
   try {
+    const guard = await verifyRole(["ADMIN", "MANAGER", "OPERATOR"], req);
+    if (guard.response) return guard.response as Response;
+
     const { searchParams } = new URL(req.url);
     const partyId = searchParams.get("partyId");
     const itemId = searchParams.get("itemId");
@@ -32,6 +36,9 @@ export async function GET(req: Request) {
 // 2. POST: Naye rates save ya purane overwrite karne ke liye
 export async function POST(req: Request) {
   try {
+    const guard = await verifyRole(["ADMIN", "MANAGER"], req);
+    if (guard.response) return guard.response as Response;
+
     const { partyId, rows } = await req.json();
 
     if (!partyId || !rows || rows.length === 0) {

@@ -11,6 +11,31 @@ export default function BillSummaryPage() {
   const [bills, setBills] = useState<any[]>([]);
   const [parties, setParties] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [printData, setPrintData] = useState<any>(null);
+  const [printingBillId, setPrintingBillId] = useState<string | null>(null);
+
+  // Print Invoice Handler
+  const handlePrintInvoice = async (id: string) => {
+    setPrintingBillId(id);
+    const loadId = toast.loading("Fetching invoice print data...");
+    try {
+      const res = await fetch(`/api/billing/invoice?id=${id}`);
+      const data = await res.json();
+      if (res.ok) {
+        setPrintData(data);
+        toast.success("Print template ready!", { id: loadId });
+        setTimeout(() => {
+          window.print();
+        }, 150);
+      } else {
+        toast.error(data.error || "Failed to load print data", { id: loadId });
+      }
+    } catch (err) {
+      toast.error("Network Error!", { id: loadId });
+    } finally {
+      setPrintingBillId(null);
+    }
+  };
 
   // 1. FILTER STATES (Image 71 Exact Replication)
   const [filters, setFilters] = useState({
@@ -165,7 +190,14 @@ export default function BillSummaryPage() {
                        >
                           <IndianRupee size={12}/>
                        </button>
-                       <button className="text-blue-500 hover:scale-125 transition-transform"><Printer size={14}/></button>
+                       <button 
+                         onClick={() => handlePrintInvoice(bill.id)}
+                         disabled={printingBillId === bill.id}
+                         className={`text-blue-500 hover:scale-125 transition-transform ${printingBillId === bill.id ? 'opacity-30' : ''}`}
+                         title="Bill Print Karein"
+                       >
+                         {printingBillId === bill.id ? <Loader2 size={12} className="animate-spin" /> : <Printer size={14}/>}
+                       </button>
                     </div>
                   </td>
                 </tr>
@@ -174,6 +206,112 @@ export default function BillSummaryPage() {
           </tbody>
         </table>
       </div>
+
+      {/* --- HIDDEN PRINT VIEW (TAX INVOICE STYLE) --- */}
+      {printData && (
+        <div id="print-area" className="hidden print:block p-8 font-mono text-[13px] leading-relaxed text-black bg-white w-full">
+          {/* Header Section */}
+          <div className="flex justify-between items-start mb-6">
+            <div>
+              <h1 className="text-3xl font-black uppercase tracking-tight">
+                {printData.billingType === 'Nill Lot Invoice' ? 'Bill Of Supply' : 'Tax Invoice'}
+              </h1>
+            </div>
+            <div className="text-right">
+              <h2 className="text-2xl font-black uppercase">DJ GREEN STORAGE SOLUTIONS (P) LTD.</h2>
+              <p className="font-bold text-[12px]">PLOT NO. 1 NSM AZADPUR, DELHI-33</p>
+            </div>
+          </div>
+
+          {/* Info Grid */}
+          <div className="grid grid-cols-2 gap-x-20 mb-4 border-t-2 border-black pt-4">
+            <div className="space-y-1">
+              <div className="flex"><span className="w-28 font-bold">Invoice No.</span> <span>: {printData.invoiceNo}</span></div>
+              <div className="flex shrink-0"><span className="w-28 font-bold">Party Name</span> <span className="flex-1">: {printData.party?.tradeName || '---'}</span></div>
+              <div className="flex"><span className="w-28 font-bold">GSTIN No.</span> <span>: {printData.party?.gstNo || 'UNREGISTERED'}</span></div>
+              <div className="flex"><span className="w-28 font-bold">State</span> <span>: {printData.party?.stateName} ({printData.party?.stateCode})</span></div>
+            </div>
+            <div className="space-y-1 text-right">
+              <div className="flex justify-end"><span className="w-28 font-bold text-left">Date</span> <span className="w-32 text-left">: {formatDate(printData.date)}</span></div>
+              <div className="flex justify-end"><span className="w-28 font-bold text-left">Time</span> <span className="w-32 text-left">: {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</span></div>
+              <div className="flex justify-end"><span className="w-28 font-bold text-left">Status</span> <span className="w-32 text-left uppercase">: {printData.status}</span></div>
+            </div>
+          </div>
+
+          {/* Table Header (Lines Only) */}
+          <div className="border-t-2 border-b-2 border-black flex font-black uppercase py-2 mb-2 text-[11px]">
+            <div className="w-[10%]">LOT-NO</div>
+            <div className="w-[30%]">Item Name</div>
+            <div className="w-[10%] text-center">Qty</div>
+            <div className="w-[10%] text-center">Days</div>
+            <div className="w-[10%] text-right">Rent Rate</div>
+            <div className="w-[10%] text-right">Rent Amt</div>
+            <div className="w-[10%] text-right">Lab Rate</div>
+            <div className="w-[10%] text-right">Lab Amt</div>
+          </div>
+
+          {/* Table Rows (No Borders) */}
+          <div className="min-h-[250px] border-b-2 border-black pb-4">
+            {printData.items?.map((row: any, idx: number) => (
+              <div key={idx} className="flex py-1 text-[12px]">
+                <div className="w-[10%] font-bold">{row.lot?.lotNo || '---'}</div>
+                <div className="w-[30%] font-black uppercase">{row.lot?.item?.name || '---'}</div>
+                <div className="w-[10%] text-center font-black">{row.qty}</div>
+                <div className="w-[10%] text-center">{row.period}</div>
+                <div className="w-[10%] text-right">{Number(row.rentRate).toFixed(2)}</div>
+                <div className="w-[10%] text-right font-bold">₹{Number(row.rentAmt).toFixed(2)}</div>
+                <div className="w-[10%] text-right">{Number(row.labourRate).toFixed(2)}</div>
+                <div className="w-[10%] text-right font-bold">₹{Number(row.labourAmt).toFixed(2)}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Summary Calculations Section */}
+          <div className="grid grid-cols-2 gap-20 mt-4 text-[12px]">
+            <div className="space-y-1">
+              <div className="flex"><span className="w-32 font-bold">Total Qty</span> <span>: {printData.totalQty} Bags</span></div>
+              <div className="flex"><span className="w-32 font-bold">Base Rent</span> <span>: ₹{Number(printData.totalRent).toFixed(2)}</span></div>
+              <div className="flex"><span className="w-32 font-bold">Base Labour</span> <span>: ₹{Number(printData.totalLabour).toFixed(2)}</span></div>
+            </div>
+            <div className="space-y-1 text-right">
+              <div className="flex justify-end"><span className="w-36 font-bold text-left">Taxable Value</span> <span className="w-24 text-right">₹{Number(printData.taxableValue).toFixed(2)}</span></div>
+              {Number(printData.cgst) > 0 && <div className="flex justify-end"><span className="w-36 font-bold text-left">CGST</span> <span className="w-24 text-right">₹{Number(printData.cgst).toFixed(2)}</span></div>}
+              {Number(printData.sgst) > 0 && <div className="flex justify-end"><span className="w-36 font-bold text-left">SGST</span> <span className="w-24 text-right">₹{Number(printData.sgst).toFixed(2)}</span></div>}
+              {Number(printData.igst) > 0 && <div className="flex justify-end"><span className="w-36 font-bold text-left">IGST</span> <span className="w-24 text-right">₹{Number(printData.igst).toFixed(2)}</span></div>}
+              <div className="flex justify-end"><span className="w-36 font-bold text-left">Round Off</span> <span className="w-24 text-right">₹{Number(printData.roundOff).toFixed(2)}</span></div>
+              <div className="flex justify-end border-t border-black pt-1 font-black text-sm"><span className="w-36 text-left uppercase">Net Payable</span> <span className="w-24 text-right">₹{Number(printData.netAmount).toLocaleString('en-IN')}</span></div>
+            </div>
+          </div>
+
+          <div className="mt-16">
+              <p className="text-[11px] font-bold leading-tight mb-20 text-center">
+                  * Thank you for your business. Please settle outstanding dues within payment terms. *
+              </p>
+              <div className="flex justify-between items-end px-10">
+                 <div className="border-t border-black pt-2 w-64 text-center font-black text-[12px]">(Customer Signature)</div>
+                 <div className="border-t border-black pt-2 w-64 text-center font-black text-[12px]">Authorized Signatory</div>
+              </div>
+          </div>
+        </div>
+      )}
+
+      {/* STYLES FOR PRINTING */}
+      <style jsx global>{`
+        @media print {
+          body * { visibility: hidden; }
+          #print-area, #print-area * { visibility: visible; }
+          #print-area { 
+            position: absolute; 
+            left: 0; 
+            top: 0; 
+            width: 100%; 
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          @page { size: portrait; margin: 15mm; }
+        }
+      `}</style>
+
     </div>
   );
 }

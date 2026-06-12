@@ -151,15 +151,29 @@ export default function BillEntryPage() {
       return { ...it, rentAmt, labourAmt: labAmt, prd, rentRate: rent, labRate: lab };
     });
 
-    const grossAmount = totalRent + totalLab;
-    const taxableValue = Math.max(0, grossAmount - Number(discount));
-    
+    let taxableValue = 0;
+    let nonTaxableValue = 0;
+
+    if (header.gstOn === "Only Rent (Labour Exempt)") {
+      // GST only on Rent minus discount
+      taxableValue = Math.max(0, totalRent - Number(discount));
+      nonTaxableValue = totalLab;
+    } else {
+      // GST on both Rent + Labour minus discount
+      const grossAmount = totalRent + totalLab;
+      taxableValue = Math.max(0, grossAmount - Number(discount));
+      nonTaxableValue = 0;
+    }
+
     const cgstAmt = taxableValue * (taxRates.cgst / 100);
     const sgstAmt = taxableValue * (taxRates.sgst / 100);
     const igstAmt = taxableValue * (taxRates.igst / 100);
     
-    const netAmt = Math.round(taxableValue + cgstAmt + sgstAmt + igstAmt);
-    const roundOff = netAmt - (taxableValue + cgstAmt + sgstAmt + igstAmt);
+    const baseForRounding = taxableValue + nonTaxableValue + cgstAmt + sgstAmt + igstAmt;
+    const netAmt = Math.round(baseForRounding);
+    const roundOff = netAmt - baseForRounding;
+
+    const grossAmount = totalRent + totalLab;
 
     return {
       processedItems,
@@ -168,7 +182,7 @@ export default function BillEntryPage() {
         labourTotal: totalLab, rentTotal: totalRent, netAmt, roundOff
       }
     };
-  }, [items, discount, taxRates, billingConfig.billLabour]);
+  }, [items, discount, taxRates, billingConfig.billLabour, header.gstOn]);
 
   // 🔴 IMPORT DATA
   const handleImportData = async () => {
@@ -255,6 +269,16 @@ export default function BillEntryPage() {
         <div className="flex gap-2">
           <button onClick={handleSave} disabled={isSaving || items.length === 0} className="bg-[#10b981] hover:bg-green-700 text-white px-12 py-1.5 rounded font-black flex items-center gap-2 shadow-xl active:scale-95 transition-all disabled:opacity-50 uppercase text-[12px]">
             {isSaving ? <Loader2 className="animate-spin" size={16}/> : <Save size={16}/>} SAVE TAX INVOICE
+          </button>
+          <button 
+            onClick={() => {
+              if (items.length === 0) return toast.error("Bill khali hai! Pehle data import karein.");
+              window.print();
+            }}
+            disabled={items.length === 0}
+            className={`px-8 py-1.5 rounded font-black flex items-center gap-2 shadow uppercase transition-all ${items.length === 0 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-2 border-blue-600 text-blue-600 hover:bg-blue-50'}`}
+          >
+            <Printer size={16}/> Print Bill
           </button>
           <button onClick={() => window.location.reload()} className="bg-orange-500 text-white p-1.5 rounded shadow hover:bg-orange-600 transition-all">
             <RotateCcw size={18}/>
@@ -423,6 +447,108 @@ export default function BillEntryPage() {
             <p className="text-yellow-300 font-black text-2xl italic tracking-tighter">₹ {calculatedData.totals.netAmt.toLocaleString('en-IN')}</p>
          </div>
       </div>
+
+      {/* --- HIDDEN PRINT VIEW (TAX INVOICE STYLE) --- */}
+      <div id="print-area" className="hidden print:block p-8 font-mono text-[13px] leading-relaxed text-black bg-white w-full">
+        {/* Header Section */}
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h1 className="text-3xl font-black uppercase tracking-tight">{header.gstType === 'Registered' ? 'Tax Invoice' : 'Bill Of Supply'}</h1>
+          </div>
+          <div className="text-right">
+            <h2 className="text-2xl font-black uppercase">DJ GREEN STORAGE SOLUTIONS (P) LTD.</h2>
+            <p className="font-bold text-[12px]">PLOT NO. 1 NSM AZADPUR, DELHI-33</p>
+          </div>
+        </div>
+
+        {/* Info Grid */}
+        <div className="grid grid-cols-2 gap-x-20 mb-4 border-t-2 border-black pt-4">
+          <div className="space-y-1">
+            <div className="flex"><span className="w-28 font-bold">Invoice No.</span> <span>: {header.invoiceNo}</span></div>
+            <div className="flex shrink-0"><span className="w-28 font-bold">Party Name</span> <span className="flex-1">: {parties.find(p => p.id === header.partyId)?.tradeName || '---'}</span></div>
+            <div className="flex"><span className="w-28 font-bold">GSTIN No.</span> <span>: {header.partyGst || 'UNREGISTERED'}</span></div>
+            <div className="flex"><span className="w-28 font-bold">State</span> <span>: {header.stateName} ({header.stateCode})</span></div>
+          </div>
+          <div className="space-y-1 text-right">
+            <div className="flex justify-end"><span className="w-28 font-bold text-left">Date</span> <span className="w-32 text-left">: {formatDate(header.billDate)}</span></div>
+            <div className="flex justify-end"><span className="w-28 font-bold text-left">Time</span> <span className="w-32 text-left">: {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</span></div>
+            <div className="flex justify-end"><span className="w-28 font-bold text-left">Remarks</span> <span className="w-32 text-left truncate">: {header.remarks || "---"}</span></div>
+          </div>
+        </div>
+
+        {/* Table Header (Lines Only) */}
+        <div className="border-t-2 border-b-2 border-black flex font-black uppercase py-2 mb-2 text-[11px]">
+          <div className="w-[10%]">LOT-NO</div>
+          <div className="w-[30%]">Item Name</div>
+          <div className="w-[10%] text-center">Qty</div>
+          <div className="w-[10%] text-center">Days</div>
+          <div className="w-[10%] text-right">Rent Rate</div>
+          <div className="w-[10%] text-right">Rent Amt</div>
+          <div className="w-[10%] text-right">Lab Rate</div>
+          <div className="w-[10%] text-right">Lab Amt</div>
+        </div>
+
+        {/* Table Rows (No Borders) */}
+        <div className="min-h-[250px] border-b-2 border-black pb-4">
+          {calculatedData.processedItems.map((row: any, idx: number) => (
+            <div key={idx} className="flex py-1 text-[12px]">
+              <div className="w-[10%] font-bold">{row.lotNo}</div>
+              <div className="w-[30%] font-black uppercase">{row.itemName}</div>
+              <div className="w-[10%] text-center font-black">{row.qty}</div>
+              <div className="w-[10%] text-center">{row.prd}</div>
+              <div className="w-[10%] text-right">{Number(row.rentRate).toFixed(2)}</div>
+              <div className="w-[10%] text-right font-bold">₹{Number(row.rentAmt).toFixed(2)}</div>
+              <div className="w-[10%] text-right">{Number(row.labRate).toFixed(2)}</div>
+              <div className="w-[10%] text-right font-bold">₹{Number(row.labourAmt).toFixed(2)}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Summary Calculations Section */}
+        <div className="grid grid-cols-2 gap-20 mt-4 text-[12px]">
+          <div className="space-y-1">
+            <div className="flex"><span className="w-32 font-bold">Total Qty</span> <span>: {calculatedData.totals.totalQty} Bags</span></div>
+            <div className="flex"><span className="w-32 font-bold">Base Rent</span> <span>: ₹{calculatedData.totals.rentTotal.toFixed(2)}</span></div>
+            <div className="flex"><span className="w-32 font-bold">Base Labour</span> <span>: ₹{calculatedData.totals.labourTotal.toFixed(2)}</span></div>
+            {discount > 0 && <div className="flex text-red-600"><span className="w-32 font-bold">Discount</span> <span>: -₹{Number(discount).toFixed(2)}</span></div>}
+          </div>
+          <div className="space-y-1 text-right">
+            <div className="flex justify-end"><span className="w-36 font-bold text-left">Taxable Value</span> <span className="w-24 text-right">₹{calculatedData.totals.taxableValue.toFixed(2)}</span></div>
+            {calculatedData.totals.cgstAmt > 0 && <div className="flex justify-end"><span className="w-36 font-bold text-left">CGST ({taxRates.cgst}%)</span> <span className="w-24 text-right">₹{calculatedData.totals.cgstAmt.toFixed(2)}</span></div>}
+            {calculatedData.totals.sgstAmt > 0 && <div className="flex justify-end"><span className="w-36 font-bold text-left">SGST ({taxRates.sgst}%)</span> <span className="w-24 text-right">₹{calculatedData.totals.sgstAmt.toFixed(2)}</span></div>}
+            {calculatedData.totals.igstAmt > 0 && <div className="flex justify-end"><span className="w-36 font-bold text-left">IGST ({taxRates.igst}%)</span> <span className="w-24 text-right">₹{calculatedData.totals.igstAmt.toFixed(2)}</span></div>}
+            <div className="flex justify-end"><span className="w-36 font-bold text-left">Round Off</span> <span className="w-24 text-right">₹{calculatedData.totals.roundOff.toFixed(2)}</span></div>
+            <div className="flex justify-end border-t border-black pt-1 font-black text-sm"><span className="w-36 text-left uppercase">Net Payable</span> <span className="w-24 text-right">₹{calculatedData.totals.netAmt.toLocaleString('en-IN')}</span></div>
+          </div>
+        </div>
+
+        <div className="mt-16">
+            <p className="text-[11px] font-bold leading-tight mb-20 text-center">
+                * Thank you for your business. Please settle outstanding dues within payment terms. *
+            </p>
+            <div className="flex justify-between items-end px-10">
+               <div className="border-t border-black pt-2 w-64 text-center font-black text-[12px]">(Customer Signature)</div>
+               <div className="border-t border-black pt-2 w-64 text-center font-black text-[12px]">Authorized Signatory</div>
+            </div>
+        </div>
+      </div>
+
+      {/* STYLES FOR PRINTING */}
+      <style jsx global>{`
+        @media print {
+          body * { visibility: hidden; }
+          #print-area, #print-area * { visibility: visible; }
+          #print-area { 
+            position: absolute; 
+            left: 0; 
+            top: 0; 
+            width: 100%; 
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          @page { size: portrait; margin: 15mm; }
+        }
+      `}</style>
 
     </div>
   );

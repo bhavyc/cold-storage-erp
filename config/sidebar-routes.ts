@@ -91,6 +91,7 @@ export const sidebarRoutes: SidebarItem[] = [
       { title: "Bill Book", href: "/billing/bill-book" },
       { title: "Accrued Rent Report", href: "/reports/accrued-detail" },
       { title: "Revenue Analysis", href: "/reports/accrued-summary" },
+      { title: "Labour Bill Report", href: "/reports/labour-bill" },
     ]
   },
   {
@@ -117,6 +118,7 @@ export const sidebarRoutes: SidebarItem[] = [
     icon: Settings,
     submenu: [
       { title: "Admin Settings", href: "/admin/settings" },
+      { title: "User Management", href: "/admin/users" },
       // { title: "Activity Log", href: "/admin/logs" },
       { title: "TDS Master", href: "/admin/tds" },
       { title: "Narration Master", href: "/admin/narrations" },

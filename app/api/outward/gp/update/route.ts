@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { verifyRole } from "@/lib/auth-guard";
 
 export async function PUT(req: Request) {
   try {
+    const guard = await verifyRole(["ADMIN", "MANAGER", "OPERATOR"], req);
+    if (guard.response) return guard.response as Response;
+
     const { header, items } = await req.json();
 
     if (!header.gpNo) return NextResponse.json({ error: "GP No required for update" }, { status: 400 });
@@ -48,8 +52,6 @@ export async function PUT(req: Request) {
             personName: header.deliveryPerson,
             transportRequired: header.transportRequired === "Yes",
             grNo: header.grNo,
-            remarks: header.remarks,
-            transporterName: header.transporterName
           }
         });
 

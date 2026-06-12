@@ -183,6 +183,29 @@ const handleSubmit = async (e: React.FormEvent) => {
   }
 };
 
+  // Delete handler
+  const handleDelete = async (party: Party) => {
+    if (!confirm(`Kya aap merchant "${party.tradeName}" (${party.partyCode}) ko permanently delete karna chahte hain?`)) return;
+
+    const toastId = toast.loading("Merchant profile delete ho raha hai...");
+    try {
+      const res = await fetch(`/api/masters/party/${party.id}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        toast.success("Merchant profile successfully deleted!", { id: toastId });
+        fetchParties();
+      } else {
+        toast.error(data.error || "Delete fail ho gaya!", { id: toastId });
+      }
+    } catch (err) {
+      toast.error("Network Error!", { id: toastId });
+    }
+  };
+
   // Filter logic
   const filtered = parties.filter(p => 
     p.tradeName.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -246,7 +269,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 <td className="p-4 text-center">
                    <div className="flex justify-center gap-4">
                       <button onClick={() => handleEdit(party)} className="text-blue-600 hover:scale-125 transition-transform"><Edit size={16}/></button>
-                      <button className="text-red-500 hover:scale-125 transition-transform"><Trash2 size={16}/></button>
+                      <button onClick={() => handleDelete(party)} className="text-red-500 hover:scale-125 transition-transform"><Trash2 size={16}/></button>
                    </div>
                 </td>
               </tr>

@@ -24,6 +24,45 @@ export function Sidebar() {
     );
   };
 
+  const userRole = (session?.user as any)?.role || "OPERATOR";
+
+  // Filter routes based on user role
+  const filteredRoutes = sidebarRoutes.map(route => {
+    if (userRole === "ADMIN") return route;
+
+    if (userRole === "MANAGER") {
+      const hiddenMenus = ["Utilities", "Chamber Billing", "Accounts"];
+      if (hiddenMenus.includes(route.title)) return null;
+      return route;
+    }
+
+    if (userRole === "OPERATOR") {
+      const hiddenMenus = ["Master Data", "Chamber Billing", "Accounts", "Utilities"];
+      if (hiddenMenus.includes(route.title)) return null;
+      return route;
+    }
+
+    if (userRole === "GATEKEEPER") {
+      if (route.title === "Dashboard") return route;
+      if (route.title === "Chamber In" && route.submenu) {
+        return {
+          ...route,
+          submenu: route.submenu.filter(sub => sub.title === "Material Inward (MR)")
+        };
+      }
+      if (route.title === "Chamber Out" && route.submenu) {
+        return {
+          ...route,
+          submenu: route.submenu.filter(sub => 
+            sub.title === "Material Outward (GP)" || sub.title === "Simple Gate Pass"
+          )
+        };
+      }
+      return null;
+    }
+    return null;
+  }).filter(Boolean) as typeof sidebarRoutes;
+
   return (
     <div className="w-64 bg-[#2c3e50] text-white h-screen flex flex-col shadow-xl overflow-y-auto scrollbar-hide">
       {/* Brand Header */}
@@ -33,7 +72,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 mt-4 px-3 space-y-1">
-        {sidebarRoutes.map((route) => {
+        {filteredRoutes.map((route) => {
           const isOpen = openMenus.includes(route.title);
           const Icon = route.icon;
 

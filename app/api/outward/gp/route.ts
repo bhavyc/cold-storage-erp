@@ -3,8 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { getNextNumber, peekNextNumber } from "@/lib/sequence-engine";
 
+import { verifyGatekeeperCreateOnly, verifyRole } from "@/lib/auth-guard";
+
 export async function POST(req: Request) {
   try {
+    const guard = await verifyGatekeeperCreateOnly(req, ["ADMIN", "MANAGER", "OPERATOR", "GATEKEEPER"]);
+    if (guard.response) return guard.response as Response;
+
     const { header, items } = await req.json();
 
     const result = await prisma.$transaction(async (tx) => {
@@ -136,6 +141,13 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
-  const nextNo = await peekNextNumber("GP");
-  return NextResponse.json({ nextNo });
+  try {
+    const guard = await verifyRole(["ADMIN", "MANAGER", "OPERATOR", "GATEKEEPER"]);
+    if (guard.response) return guard.response as Response;
+
+    const nextNo = await peekNextNumber("GP");
+    return NextResponse.json({ nextNo });
+  } catch (error) {
+    return NextResponse.json({ error: "Failed to peek next number" }, { status: 500 });
+  }
 }

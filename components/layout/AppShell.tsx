@@ -11,7 +11,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   
   // Routes where Sidebar/Header should be hidden
-  const isAuthPage = pathname === "/admin/login" || pathname === "/admin/register";
+  const isAuthPage = pathname === "/admin/login" || pathname === "/admin/register" || pathname === "/unauthorized";
 
   if (isAuthPage) {
     return (

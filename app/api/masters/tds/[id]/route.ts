@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { verifyRole } from "@/lib/auth-guard";
 
 // 1. PATCH: Update existing TDS Rule
 export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const guard = await verifyRole(["ADMIN"]);
+  if (guard.response) return guard.response as Response;
+
   const params = await props.params;
   try {
     const { id } = await params; // Next.js 15+ safety
@@ -34,6 +38,9 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
 
 // 2. DELETE: Remove TDS Rule
 export async function DELETE(req: Request, props: { params: Promise<{ id: string }> }) {
+  const guard = await verifyRole(["ADMIN"]);
+  if (guard.response) return guard.response as Response;
+
   const params = await props.params;
   try {
     const { id } = await params;

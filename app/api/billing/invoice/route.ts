@@ -2,9 +2,13 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { getNextNumber } from "@/lib/sequence-engine";
+import { verifyRole } from "@/lib/auth-guard";
 
 export async function POST(req: Request) {
   try {
+    const guard = await verifyRole(["ADMIN"], req);
+    if (guard.response) return guard.response as Response;
+
     const body = await req.json();
     const { header, items, totals } = body;
 
@@ -68,10 +72,18 @@ export async function POST(req: Request) {
       if (incomeId && partyLedger) {
         const autoVocNo = await getNextNumber("VOC", tx);
         
+        // Calculate pre-tax revenue: netAmount - cgst - sgst - igst - roundOff
+        const netAmtNum = invoice.netAmount.toNumber();
+        const cgstNum = invoice.cgst.toNumber();
+        const sgstNum = invoice.sgst.toNumber();
+        const igstNum = invoice.igst.toNumber();
+        const roundOffNum = invoice.roundOff.toNumber();
+        const totalPreTaxRevenue = new Prisma.Decimal((netAmtNum - cgstNum - sgstNum - igstNum - roundOffNum).toFixed(2));
+
         // Build credit entries dynamically (only non-zero amounts)
         const creditEntries: any[] = [
-          // Rent Income = Taxable Value only (NOT net amount)
-          { ledgerId: incomeId, debit: 0, credit: invoice.taxableValue, narration: "Storage Rent Earned" }
+          // Rent Income = Total pre-tax revenue (Rent + Labour, less discount)
+          { ledgerId: incomeId, debit: 0, credit: totalPreTaxRevenue, narration: "Storage Rent Earned" }
         ];
         
         // CGST Payable
@@ -166,3 +178,45 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+// 3. GET: Specific saved invoice ki details nikalne ke liye
+export async function GET(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ error: "Invoice ID is required" }, { status: 400 });
+    }
+
+    const guard = await verifyRole(["ADMIN", "MANAGER", "OPERATOR", "GATEKEEPER"]);
+    if (guard.response) return guard.response as Response;
+
+    const invoice = await prisma.invoice.findUnique({
+      where: { id },
+      include: {
+        party: true,
+        items: {
+          include: {
+            lot: {
+              include: {
+                item: true,
+                unit: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!invoice) {
+      return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(invoice);
+  } catch (error: any) {
+    console.error("INVOICE_GET_ERR:", error);
+    return NextResponse.json({ error: "Failed to fetch invoice details" }, { status: 500 });
+  }
+}
+

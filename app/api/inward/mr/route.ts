@@ -3,8 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { getNextNumber } from "@/lib/sequence-engine";
 
+import { verifyGatekeeperCreateOnly } from "@/lib/auth-guard";
+
 export async function POST(req: Request) {
   try {
+    const guard = await verifyGatekeeperCreateOnly(req, ["ADMIN", "MANAGER", "OPERATOR", "GATEKEEPER"]);
+    if (guard.response) return guard.response as Response;
+
     const { header, items } = await req.json();
 
     const result = await prisma.$transaction(async (tx) => {
@@ -39,7 +44,7 @@ export async function POST(req: Request) {
             partyId: header.partyId,
             itemId: item.itemId,
             unitId: item.unitId,
-           chamberId: item.chamberId && item.chamberId !== "" ? item.chamberId : null, 
+            chamberId: item.chamberId && item.chamberId !== "" ? item.chamberId : null, 
             floor: item.floor || "0",
             pole: item.pillar || "0", // Map pillar to pole field
             marka: item.marka || "---",

@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { verifyRole } from "@/lib/auth-guard";
 
 // GET All Units
 export async function GET() {
   try {
+    const guard = await verifyRole(["ADMIN", "MANAGER", "OPERATOR", "GATEKEEPER"]);
+    if (guard.response) return guard.response as Response;
+
     const units = await prisma.unit.findMany({ orderBy: { code: 'asc' } });
     return NextResponse.json(units);
   } catch (error) {
@@ -15,6 +19,9 @@ export async function GET() {
 // POST Create Unit
 export async function POST(req: Request) {
   try {
+    const guard = await verifyRole(["ADMIN", "MANAGER"]);
+    if (guard.response) return guard.response as Response;
+
     const body = await req.json();
     const unit = await prisma.unit.create({
       data: {

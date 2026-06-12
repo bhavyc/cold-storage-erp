@@ -56,12 +56,12 @@ export async function GET(req: Request) {
       gpDate: gpEntries[0].gpDate.toISOString().split('T')[0],
       partyId: gpEntries[0].lot.partyId,
       partyCode: gpEntries[0].lot.party.partyCode,
-      transporterName: gpEntries[0].transporterName || "",
+      transporterName: "",
       deliveryPerson: gpEntries[0].personName || "",
       truckNo: gpEntries[0].vehicleNo || "",
       grNo: gpEntries[0].grNo || "",
       transportRequired: gpEntries[0].transportRequired ? "Yes" : "No",
-      remarks: gpEntries[0].remarks || "",
+      remarks: "",
     };
 
     const items = gpEntries.map(entry => ({

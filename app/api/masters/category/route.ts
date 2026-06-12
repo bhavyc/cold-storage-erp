@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { verifyRole } from "@/lib/auth-guard";
 
 export async function GET() {
   try {
+    const guard = await verifyRole(["ADMIN", "MANAGER", "OPERATOR"]);
+    if (guard.response) return guard.response as Response;
+
     const categories = await prisma.category.findMany({ 
       orderBy: { code: 'asc' } 
     });
@@ -14,6 +18,9 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const guard = await verifyRole(["ADMIN", "MANAGER"]);
+    if (guard.response) return guard.response as Response;
+
     const body = await req.json();
     
     // Automation: Check if updating or creating

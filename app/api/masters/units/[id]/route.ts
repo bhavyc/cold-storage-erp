@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { verifyRole } from "@/lib/auth-guard";
 
 // 1. DELETE UNIT (With Deep Integrity Check)
 export async function DELETE(req: Request, props: { params: Promise<{ id: string }> }) {
+  const guard = await verifyRole(["ADMIN"]);
+  if (guard.response) return guard.response as Response;
+
   const params = await props.params;
   try {
     const { id } = await params; // Awaiting params for Next.js 15 compatibility
@@ -54,6 +58,9 @@ export async function DELETE(req: Request, props: { params: Promise<{ id: string
 
 // 2. UPDATE UNIT (With Precision Decimal logic)
 export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const guard = await verifyRole(["ADMIN", "MANAGER"]);
+  if (guard.response) return guard.response as Response;
+
   const params = await props.params;
   try {
     const { id } = await params;

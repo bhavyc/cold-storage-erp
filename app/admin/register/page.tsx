@@ -45,7 +45,7 @@ export default function RegisterPage() {
     <div className="fixed inset-0 flex items-center justify-center bg-[#0f172a] overflow-hidden z-[9999]">
       {/* Background decoration */}
       <div className="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] bg-emerald-600/10 rounded-full blur-[120px]"></div>
-      
+
       <div className="relative w-full max-w-lg p-8">
         <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 shadow-2xl">
           <div className="text-center mb-8">
@@ -126,7 +126,7 @@ export default function RegisterPage() {
 
           <p className="mt-6 text-center text-emerald-100/40 text-sm">
             Already have an account?{" "}
-            <button 
+            <button
               onClick={() => router.push("/admin/login")}
               className="text-emerald-400 hover:text-emerald-300 font-semibold underline underline-offset-4"
             >

@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Plus, Trash2, Save, ArrowLeft, FileSpreadsheet, Printer, Search, Edit2, Loader2, Info } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { useSession } from "next-auth/react";
 
 // --- Types ---
 interface Unit {
@@ -25,6 +26,7 @@ interface ItemUnitRow {
 }
 
 export default function ItemMasterPage() {
+  const { data: session } = useSession();
   const [view, setView] = useState<"list" | "add">("list");
   const [categories, setCategories] = useState<Category[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
@@ -253,7 +255,9 @@ export default function ItemMasterPage() {
                     <td className="p-4 text-center">
                       <div className="flex justify-center gap-4">
                         <button onClick={() => handleEdit(item)} className="text-blue-600 hover:scale-125 transition-transform"><Edit2 size={16} /></button>
-                        <button onClick={() => handleDelete(item.id)} className="text-red-500 hover:scale-125 transition-transform"><Trash2 size={16} /></button>
+                        {session?.user && (session.user as any).role === "ADMIN" && (
+                          <button onClick={() => handleDelete(item.id)} className="text-red-500 hover:scale-125 transition-transform"><Trash2 size={16} /></button>
+                        )}
                       </div>
                     </td>
                   </tr>

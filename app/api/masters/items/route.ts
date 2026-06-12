@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ItemSchema } from "@/lib/validations/item";
+import { verifyRole } from "@/lib/auth-guard";
 
 // GET: Sabhi Items unke Units ke saath nikalne ke liye
 
 export async function GET(req: Request) {
   try {
+    const guard = await verifyRole(["ADMIN", "MANAGER", "OPERATOR", "GATEKEEPER"]);
+    if (guard.response) return guard.response as Response;
+
     const { searchParams } = new URL(req.url);
     const name = searchParams.get("name");
     const hsn = searchParams.get("hsn");
@@ -31,6 +35,9 @@ export async function GET(req: Request) {
 // POST: Naya Item create karna with multiple Units
 export async function POST(req: Request) {
   try {
+    const guard = await verifyRole(["ADMIN", "MANAGER"]);
+    if (guard.response) return guard.response as Response;
+
     const body = await req.json();
     const validatedData = ItemSchema.parse(body);
 

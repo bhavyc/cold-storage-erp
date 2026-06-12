@@ -22,6 +22,12 @@ export async function POST(req: Request) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    // Count existing admin accounts to determine first-time auto-approval
+    const adminCount = await prisma.user.count({
+      where: { role: "ADMIN" }
+    });
+    const isFirstAdmin = role === "ADMIN" && adminCount === 0;
+
     // Create user
     const user = await prisma.user.create({
       data: {
@@ -29,7 +35,7 @@ export async function POST(req: Request) {
         username,
         password: hashedPassword,
         role,
-        status: true
+        status: isFirstAdmin
       }
     });
 
